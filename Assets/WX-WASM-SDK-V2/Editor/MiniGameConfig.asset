@@ -17,7 +17,7 @@ MonoBehaviour:
     Appid: wx688fe56d3482c765
     CDN: 
     assetLoadType: 1
-    compressDataPackage: 0
+    compressDataPackage: 1
     VideoUrl: 
     relativeDST: /Users/linkunkun/WeChatProjects/SandFlow
     DST: /Users/linkunkun/WeChatProjects/SandFlow
@@ -43,7 +43,7 @@ MonoBehaviour:
     IOSDevicePixelRatio: 0
   SDKOptions:
     UseFriendRelation: 0
-    UseCompressedTexture: 0
+    UseCompressedTexture: 1
     UseMiniGameChat: 0
     PreloadWXFont: 0
     disableMultiTouch: 0
