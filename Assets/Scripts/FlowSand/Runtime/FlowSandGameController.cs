@@ -32,8 +32,9 @@ namespace FlowSand.Runtime
         private FlowSandMatchCoordinator match;
         private FlowSandSfxPlayer sfxPlayer;
         private bool softDropHeld;
+        private bool initialized;
 
-        private void Awake()
+        private async void Start()
         {
             Application.targetFrameRate = 60;
             random = new System.Random();
@@ -42,8 +43,8 @@ namespace FlowSand.Runtime
 
             FlowSandRuntimeView.EnsureEventSystem();
             ConfigureCamera();
-            view = new FlowSandRuntimeView(Resources.GetBuiltinResource<Font>("LegacyRuntime.ttf"));
-            view.Build(
+            view = new FlowSandRuntimeView();
+            await view.BuildAsync(
                 TogglePause,
                 OnOverlayButtonPressed,
                 () => TryMove(-1),
@@ -59,10 +60,16 @@ namespace FlowSand.Runtime
 
             ShowTitleScreen();
             RefreshAllVisuals();
+            initialized = true;
         }
 
         private void Update()
         {
+            if (!initialized)
+            {
+                return;
+            }
+
             HandleKeyboardShortcuts();
             if (match.Phase != FlowSandMatchCoordinator.GamePhase.Playing)
             {
@@ -128,9 +135,8 @@ namespace FlowSand.Runtime
             softDropHeld = false;
             match.StartMatch();
 
-            view.PauseDimmer.SetActive(false);
-            view.OverlayPanel.SetActive(false);
-            view.PauseButton.gameObject.SetActive(true);
+            view.SetOverlay(false);
+            view.SetPauseButton(true);
 
             SpawnNextPieceOrEnd();
             sfxPlayer.PlayStart();
@@ -150,13 +156,13 @@ namespace FlowSand.Runtime
             }
 
             match.MarkGameOver();
-            view.PauseButton.gameObject.SetActive(false);
-            view.PauseDimmer.SetActive(true);
-            view.OverlayPanel.SetActive(true);
-            view.TitleText.text = "ROUND OVER";
-            view.SubtitleText.text = "The sand pile blocked the spawn lane.\nTap to rebuild the board.";
-            view.StartButtonText.text = "RESTART";
-            view.MessageText.text = $"Final Score {match.Score}\nBest {match.HighScore}";
+            view.SetPauseButton(false);
+            view.SetOverlay(
+                true,
+                "ROUND OVER",
+                "The sand pile blocked the spawn lane.\nTap to rebuild the board.",
+                $"FINAL SCORE  {match.Score}     BEST  {match.HighScore}",
+                "RESTART");
             sfxPlayer.PlayGameOver();
         }
 
@@ -170,20 +176,19 @@ namespace FlowSand.Runtime
             if (match.Phase == FlowSandMatchCoordinator.GamePhase.Playing)
             {
                 match.TogglePause();
-                view.PauseDimmer.SetActive(true);
-                view.OverlayPanel.SetActive(true);
-                view.TitleText.text = "PAUSED";
-                view.SubtitleText.text = "Flow keeps its state. Jump back in when ready.";
-                view.MessageText.text = "Press P or tap Resume";
-                view.StartButtonText.text = "RESUME";
-                view.PauseButtonText.text = "Resume";
+                view.SetOverlay(
+                    true,
+                    "PAUSED",
+                    "The board is holding its shape.",
+                    "PRESS P OR TAP RESUME",
+                    "RESUME");
+                view.SetPauseButton(true, "RESUME");
                 return;
             }
 
             match.TogglePause();
-            view.PauseDimmer.SetActive(false);
-            view.OverlayPanel.SetActive(false);
-            view.PauseButtonText.text = "Pause";
+            view.SetOverlay(false);
+            view.SetPauseButton(true);
         }
 
         private void TryMove(int delta)
@@ -217,13 +222,13 @@ namespace FlowSand.Runtime
         private void ShowTitleScreen()
         {
             match.ShowTitle();
-            view.PauseDimmer.SetActive(true);
-            view.OverlayPanel.SetActive(true);
-            view.PauseButton.gameObject.SetActive(false);
-            view.TitleText.text = "FLOW SAND\nTETRIS";
-            view.SubtitleText.text = "Drop blocks, let them crumble into sand,\nand bridge one color from left to right.";
-            view.MessageText.text = "Mobile portrait prototype\nButtons: move, rotate, soft drop";
-            view.StartButtonText.text = "START";
+            view.SetPauseButton(false);
+            view.SetOverlay(
+                true,
+                "FLOW SAND",
+                "Drop blocks. Let them crumble.\nBridge one color from edge to edge.",
+                "MOVE  /  ROTATE  /  SOFT DROP",
+                "START RUN");
         }
 
         private void RefreshAllVisuals()
@@ -235,9 +240,7 @@ namespace FlowSand.Runtime
 
         private void RefreshHud()
         {
-            view.ScoreText.text = $"Score\n{match.Score}";
-            view.HighScoreText.text = $"Best\n{match.HighScore}";
-            view.LevelText.text = $"Speed\n{match.GetSpeedLevel()}";
+            view.SetHud(match.Score, match.HighScore, match.GetSpeedLevel());
             boardRenderer.RedrawNext();
         }
 
