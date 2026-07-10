@@ -1,36 +1,72 @@
+using System;
+using System.Linq;
 using UnityEditor;
+using UnityEditor.Build;
+using UnityEditor.Build.Reporting;
 using UnityEngine;
 
-[InitializeOnLoad]
-public class FixUnity6WebGLBug
+/// <summary>
+/// Keeps malloc/free alive in Unity 6000.0 WebGL builds affected by UUM-74261.
+/// </summary>
+public sealed class FixUnity6WebGLBug : IPreprocessBuildWithReport
 {
-    static FixUnity6WebGLBug()
+    private const string ExportedFunctionsSetting = "EXPORTED_FUNCTIONS=";
+
+    public int callbackOrder => int.MaxValue;
+
+    public void OnPreprocessBuild(BuildReport report)
     {
-        string currentArgs = PlayerSettings.WebGL.emscriptenArgs;
-        Debug.Log("Current WebGL Emscripten Args: " + currentArgs);
-
-        if (!currentArgs.Contains("_malloc"))
+        if (report.summary.platform != BuildTarget.WebGL)
         {
-            string target = "-s EXPORTED_FUNCTIONS=";
-            int index = currentArgs.IndexOf(target);
-            if (index != -1)
-            {
-                int endOfParam = currentArgs.IndexOf(" ", index + target.Length);
-                if (endOfParam == -1) endOfParam = currentArgs.Length;
-                
-                string functionsStr = currentArgs.Substring(index + target.Length, endOfParam - (index + target.Length));
-                string newFunctionsStr = "_malloc,_free," + functionsStr;
-                
-                currentArgs = currentArgs.Replace(target + functionsStr, target + newFunctionsStr);
-            }
-            else
-            {
-                currentArgs += " -s EXPORTED_FUNCTIONS=_malloc,_free";
-            }
-
-            PlayerSettings.WebGL.emscriptenArgs = currentArgs;
-            AssetDatabase.SaveAssets();
-            Debug.Log("Updated WebGL Emscripten Args: " + currentArgs);
+            return;
         }
+
+        // Auto Graphics API needs to be enabled for WebGL to ensure WebGL 2.0 is active,
+        // which is required for Linear Color Space and URP shaders in WeChat Mini Game.
+        PlayerSettings.SetUseDefaultGraphicsAPIs(BuildTarget.WebGL, true);
+
+        string currentArgs = PlayerSettings.WebGL.emscriptenArgs ?? string.Empty;
+        string updatedArgs = EnsureExportedFunctions(currentArgs, "_malloc", "_free");
+
+        if (updatedArgs == currentArgs)
+        {
+            Debug.Log("[WebGL] malloc/free are already present in EXPORTED_FUNCTIONS.");
+            return;
+        }
+
+        PlayerSettings.WebGL.emscriptenArgs = updatedArgs;
+        Debug.Log("[WebGL] Added malloc/free to final Emscripten arguments: " + updatedArgs);
+    }
+
+    internal static string EnsureExportedFunctions(string arguments, params string[] functions)
+    {
+        int settingIndex = arguments.IndexOf(ExportedFunctionsSetting, StringComparison.Ordinal);
+        if (settingIndex < 0)
+        {
+            string exports = string.Join(",", functions.Distinct());
+            return (arguments + " -s EXPORTED_FUNCTIONS=" + exports).TrimStart();
+        }
+
+        int valueStart = settingIndex + ExportedFunctionsSetting.Length;
+        int valueEnd = arguments.IndexOf(' ', valueStart);
+        if (valueEnd < 0)
+        {
+            valueEnd = arguments.Length;
+        }
+
+        string currentExports = arguments.Substring(valueStart, valueEnd - valueStart);
+        string[] exportedFunctions = currentExports.Split(',');
+        string[] missingFunctions = functions
+            .Where(function => !exportedFunctions.Contains(function))
+            .Distinct()
+            .ToArray();
+
+        if (missingFunctions.Length == 0)
+        {
+            return arguments;
+        }
+
+        string separator = currentExports.Length == 0 ? string.Empty : ",";
+        return arguments.Insert(valueEnd, separator + string.Join(",", missingFunctions));
     }
 }
