@@ -31,12 +31,15 @@ namespace FlowSand.Runtime
         private FlowSandBoardRenderer boardRenderer;
         private FlowSandMatchCoordinator match;
         private FlowSandSfxPlayer sfxPlayer;
+        private PlatformKeyboard keyboard;
         private bool softDropHeld;
+        private bool uiSoftDropHeld;
         private bool initialized;
 
         private async void Start()
         {
             Application.targetFrameRate = 60;
+            keyboard = new PlatformKeyboard();
             random = new System.Random();
             board = new FlowSandBoard(CoarseCols, CoarseRows, GrainScale);
             match = new FlowSandMatchCoordinator(PlayerPrefs.GetInt(HighScoreKey, 0));
@@ -52,8 +55,8 @@ namespace FlowSand.Runtime
                 () => TryMove(1),
                 () => TryMove(1),
                 TryRotate,
-                () => softDropHeld = true,
-                () => softDropHeld = false);
+                () => uiSoftDropHeld = true,
+                () => uiSoftDropHeld = false);
 
             sfxPlayer = gameObject.AddComponent<FlowSandSfxPlayer>();
             boardRenderer = new FlowSandBoardRenderer(board, view.BoardImage, view.NextImage, palette, backgroundColor, borderColor);
@@ -71,6 +74,7 @@ namespace FlowSand.Runtime
             }
 
             HandleKeyboardShortcuts();
+            keyboard.EndFrame();
             if (match.Phase != FlowSandMatchCoordinator.GamePhase.Playing)
             {
                 return;
@@ -96,12 +100,13 @@ namespace FlowSand.Runtime
 
         private void HandleKeyboardShortcuts()
         {
-            if (Input.GetKeyDown(KeyCode.Return) && match.Phase is FlowSandMatchCoordinator.GamePhase.Title or FlowSandMatchCoordinator.GamePhase.GameOver)
+            if ((keyboard.GetKeyDown(KeyCode.Return) || keyboard.GetKeyDown(KeyCode.KeypadEnter)) &&
+                match.Phase is FlowSandMatchCoordinator.GamePhase.Title or FlowSandMatchCoordinator.GamePhase.GameOver)
             {
                 StartGame();
             }
 
-            if (Input.GetKeyDown(KeyCode.P) && match.Phase is FlowSandMatchCoordinator.GamePhase.Playing or FlowSandMatchCoordinator.GamePhase.Paused)
+            if (keyboard.GetKeyDown(KeyCode.P) && match.Phase is FlowSandMatchCoordinator.GamePhase.Playing or FlowSandMatchCoordinator.GamePhase.Paused)
             {
                 TogglePause();
             }
@@ -111,28 +116,35 @@ namespace FlowSand.Runtime
                 return;
             }
 
-            if (Input.GetKeyDown(KeyCode.LeftArrow) || Input.GetKeyDown(KeyCode.A))
+            if (keyboard.GetKeyDown(KeyCode.LeftArrow) || keyboard.GetKeyDown(KeyCode.A))
             {
                 TryMove(-1);
             }
 
-            if (Input.GetKeyDown(KeyCode.RightArrow) || Input.GetKeyDown(KeyCode.D))
+            if (keyboard.GetKeyDown(KeyCode.RightArrow) || keyboard.GetKeyDown(KeyCode.D))
             {
                 TryMove(1);
             }
 
-            if (Input.GetKeyDown(KeyCode.UpArrow) || Input.GetKeyDown(KeyCode.W) || Input.GetKeyDown(KeyCode.Space))
+            if (keyboard.GetKeyDown(KeyCode.UpArrow) || keyboard.GetKeyDown(KeyCode.W) || keyboard.GetKeyDown(KeyCode.Space))
             {
                 TryRotate();
             }
 
-            softDropHeld = Input.GetKey(KeyCode.DownArrow) || Input.GetKey(KeyCode.S);
+            bool keyboardSoftDropHeld = keyboard.GetKey(KeyCode.DownArrow) || keyboard.GetKey(KeyCode.S);
+            softDropHeld = uiSoftDropHeld || keyboardSoftDropHeld;
+        }
+
+        private void OnDestroy()
+        {
+            keyboard?.Dispose();
         }
 
         private void StartGame()
         {
             board.Reset(random);
             softDropHeld = false;
+            uiSoftDropHeld = false;
             match.StartMatch();
 
             view.SetOverlay(false);
