@@ -10,12 +10,14 @@ namespace FlowSand.Core
 
         private readonly CellColor[] sandGrid;
         private readonly TetrominoKind[] pieceBag = new TetrominoKind[7];
+        private readonly byte[] sizeBag = new byte[10];
         private readonly int[] bridgeVisitStamps;
         private readonly int[] bridgeComponent;
         private readonly int[] bridgeStack;
         private readonly List<int> bridgeResult;
 
         private int pieceBagIndex;
+        private int sizeBagIndex;
         private int bridgeVisitStamp;
         private int sandStepCount;
 
@@ -34,6 +36,7 @@ namespace FlowSand.Core
             bridgeStack = new int[cellCount];
             bridgeResult = new List<int>(cellCount);
             pieceBagIndex = pieceBag.Length;
+            sizeBagIndex = sizeBag.Length;
         }
 
         public int CoarseCols { get; }
@@ -62,6 +65,7 @@ namespace FlowSand.Core
         {
             Array.Fill(sandGrid, CellColor.Empty);
             pieceBagIndex = pieceBag.Length;
+            sizeBagIndex = sizeBag.Length;
             sandStepCount = 0;
             CurrentPiece = null;
             NextPiece = CreateQueuedPiece(random);
@@ -494,14 +498,20 @@ namespace FlowSand.Core
 
         private ActivePiece CreateQueuedPiece(System.Random random)
         {
-            if (pieceBagIndex >= pieceBag.Length)
+            if (sizeBagIndex >= sizeBag.Length)
             {
-                RefillBag(random);
+                RefillSizeBag(random);
             }
+
+            byte size = sizeBag[sizeBagIndex++];
 
             return new ActivePiece
             {
-                Kind = pieceBag[pieceBagIndex++],
+                Kind = size == 1
+                    ? TetrominoKind.Mono
+                    : size == 2
+                        ? TetrominoKind.Domino
+                        : TakeTetrominoFromBag(random),
                 Color = TetrominoLibrary.RandomColor(random),
                 Rotation = 0,
                 Col = 0,
@@ -509,7 +519,17 @@ namespace FlowSand.Core
             };
         }
 
-        private void RefillBag(System.Random random)
+        private TetrominoKind TakeTetrominoFromBag(System.Random random)
+        {
+            if (pieceBagIndex >= pieceBag.Length)
+            {
+                RefillPieceBag(random);
+            }
+
+            return pieceBag[pieceBagIndex++];
+        }
+
+        private void RefillPieceBag(System.Random random)
         {
             pieceBag[0] = TetrominoKind.I;
             pieceBag[1] = TetrominoKind.O;
@@ -526,6 +546,24 @@ namespace FlowSand.Core
             }
 
             pieceBagIndex = 0;
+        }
+
+        private void RefillSizeBag(System.Random random)
+        {
+            // Each ten-piece cycle contains 60% tetrominoes, 30% dominoes,
+            // and 10% monominoes, while shuffling their order independently.
+            for (int i = 0; i < sizeBag.Length; i++)
+            {
+                sizeBag[i] = i < 6 ? (byte)4 : i < 9 ? (byte)2 : (byte)1;
+            }
+
+            for (int i = sizeBag.Length - 1; i > 0; i--)
+            {
+                int swapIndex = random.Next(i + 1);
+                (sizeBag[i], sizeBag[swapIndex]) = (sizeBag[swapIndex], sizeBag[i]);
+            }
+
+            sizeBagIndex = 0;
         }
 
         private void TryVisitNeighbor(int index, CellColor targetColor, int visitStamp, ref int stackCount)

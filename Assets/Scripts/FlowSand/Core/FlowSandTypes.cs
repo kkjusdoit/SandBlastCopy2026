@@ -22,6 +22,8 @@ namespace FlowSand.Core
         Z,
         J,
         L,
+        Domino,
+        Mono,
     }
 
     [Serializable]
@@ -130,6 +132,24 @@ namespace FlowSand.Core
                         Cells((1, 0), (1, 1), (1, 2), (2, 2)),
                         Cells((0, 1), (1, 1), (2, 1), (0, 2)),
                         Cells((0, 0), (1, 0), (1, 1), (1, 2)),
+                    }),
+                new TetrominoDefinition(
+                    TetrominoKind.Domino,
+                    new[]
+                    {
+                        Cells((0, 0), (1, 0)),
+                        Cells((0, 0), (0, 1)),
+                        Cells((0, 0), (1, 0)),
+                        Cells((0, 0), (0, 1)),
+                    }),
+                new TetrominoDefinition(
+                    TetrominoKind.Mono,
+                    new[]
+                    {
+                        Cells((0, 0)),
+                        Cells((0, 0)),
+                        Cells((0, 0)),
+                        Cells((0, 0)),
                     }),
         };
 

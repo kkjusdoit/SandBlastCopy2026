@@ -11,6 +11,7 @@ public class FlowSandBoardTests
         System.Random random = new(0);
         board.Reset(random);
         Assert.That(board.SpawnNextPiece(random), Is.True);
+        int coarseCellCount = TetrominoLibrary.GetCells(board.CurrentPiece.Value.Kind, 0).Length;
 
         while (board.TryStepDown())
         {
@@ -30,7 +31,36 @@ public class FlowSandBoardTests
             }
         }
 
-        Assert.That(occupied, Is.EqualTo(4 * 4 * 4));
+        Assert.That(occupied, Is.EqualTo(coarseCellCount * 4 * 4));
+    }
+
+    [Test]
+    public void SmallPieceDefinitionsSupportOneAndTwoCellDrops()
+    {
+        Assert.That(TetrominoLibrary.GetCells(TetrominoKind.Mono, 0).Length, Is.EqualTo(1));
+        Assert.That(TetrominoLibrary.GetCells(TetrominoKind.Domino, 0).Length, Is.EqualTo(2));
+        Assert.That(TetrominoLibrary.GetBounds(TetrominoKind.Domino, 0).Width, Is.EqualTo(2));
+        Assert.That(TetrominoLibrary.GetBounds(TetrominoKind.Domino, 1).Height, Is.EqualTo(2));
+    }
+
+    [Test]
+    public void EveryTenQueuedPiecesUseSixtyThirtyTenSizeMix()
+    {
+        FlowSandBoard board = new(10, 20, 1);
+        System.Random random = new(17);
+        board.Reset(random);
+        int[] counts = new int[5];
+
+        for (int i = 0; i < 10; i++)
+        {
+            int cellCount = TetrominoLibrary.GetCells(board.NextPiece.Kind, 0).Length;
+            counts[cellCount] += 1;
+            board.SpawnNextPiece(random);
+        }
+
+        Assert.That(counts[4], Is.EqualTo(6));
+        Assert.That(counts[2], Is.EqualTo(3));
+        Assert.That(counts[1], Is.EqualTo(1));
     }
 
     [Test]
