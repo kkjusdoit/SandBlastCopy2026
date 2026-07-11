@@ -5,6 +5,9 @@ using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.InputSystem.UI;
 using UnityEngine.UI;
+#if UNITY_WEBGL && !UNITY_EDITOR
+using WeChatWASM;
+#endif
 
 namespace FlowSand.Runtime
 {
@@ -12,6 +15,8 @@ namespace FlowSand.Runtime
     {
         private const float BoardAspectRatio = 0.5f;
         private const string RuntimeFontShaderName = "TextMeshPro/Mobile/Distance Field";
+        private const float DefaultSafePadding = 42f;
+        private const float MenuButtonGap = 20f;
 
         private static readonly Color Background = Hex("070914");
         private static readonly Color Surface = Hex("0D1124");
@@ -60,7 +65,11 @@ namespace FlowSand.Runtime
             scaler.referenceResolution = new Vector2(1080, 1920);
             scaler.matchWidthOrHeight = .5f;
             Image("Background", root.transform, Background, Stretch());
-            Transform safe = Container("Safe Area", root.transform, Stretch(new Vector2(42, 42), new Vector2(-42, -42)));
+            float topSafePadding = GetTopSafePadding(root.GetComponent<RectTransform>(), scaler);
+            Transform safe = Container(
+                "Safe Area",
+                root.transform,
+                Stretch(new Vector2(DefaultSafePadding, DefaultSafePadding), new Vector2(-DefaultSafePadding, -topSafePadding)));
 
             // Top HUD Bar Layout
             Text("Score Label", safe, GameTexts.Score, 24, Muted, TextAlignmentOptions.TopLeft, L(0, 1, 0, 1, 10, -48, 200, 0));
@@ -157,6 +166,32 @@ namespace FlowSand.Runtime
         {
             pauseButton.gameObject.SetActive(visible);
             pauseButton.GetComponentInChildren<TMP_Text>().text = label;
+        }
+
+        private static float GetTopSafePadding(RectTransform canvasRect, CanvasScaler scaler)
+        {
+            float canvasHeight = canvasRect.rect.height;
+            if (canvasHeight <= 0f)
+            {
+                canvasHeight = scaler.referenceResolution.y;
+            }
+
+            float screenTopInset = Mathf.Max(0f, Screen.height - Screen.safeArea.yMax);
+            float canvasPadding = Mathf.Max(
+                DefaultSafePadding,
+                screenTopInset * canvasHeight / Mathf.Max(1f, Screen.height));
+
+#if UNITY_WEBGL && !UNITY_EDITOR
+            ClientRect menuButton = WX.GetMenuButtonBoundingClientRect();
+            WindowInfo windowInfo = WX.GetWindowInfo();
+            if (menuButton.bottom > 0 && windowInfo.windowHeight > 0)
+            {
+                float menuBottom = ((float)menuButton.bottom + MenuButtonGap) * canvasHeight / (float)windowInfo.windowHeight;
+                canvasPadding = Mathf.Max(canvasPadding, menuBottom);
+            }
+#endif
+
+            return canvasPadding;
         }
 
         private void CreateControls(Transform parent, Action pause, Action leftPress, Action leftRepeat, Action rightPress, Action rightRepeat, Action rotate, Action dropPress, Action dropRelease)
