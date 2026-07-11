@@ -13,9 +13,10 @@ namespace FlowSand.Runtime
         private const int CoarseCols = 10;
         private const int CoarseRows = 20;
         private const int GrainScale = 16;
-        private const string HighScoreKey = "FlowSand.HighScore";
+        private const string HighScoreKey = "FlowSand.HighScore.CellEquivalentV2";
         private const float GameOverRowInterval = 0.05f;
         private const float MaximumGameplayDeltaTime = 0.1f;
+        private const int ControlHintUseThreshold = 8;
 
         private readonly Color32 backgroundColor = new(18, 20, 44, 255);
         private readonly Color32 borderColor = new(62, 201, 255, 255);
@@ -45,6 +46,9 @@ namespace FlowSand.Runtime
         private float gameOverEffectTimer;
         private int gameOverOverlayRows;
         private bool initialized;
+        private int lockedButtonDirection;
+        private int bottomControlUseCount;
+        private bool controlHintShown;
 #if UNITY_WEBGL && !UNITY_EDITOR
         private Action<GeneralCallbackResult> onWechatHide;
         private Action<OnShowListenerResult> onWechatShow;
@@ -64,12 +68,17 @@ namespace FlowSand.Runtime
             await view.BuildAsync(
                 TogglePause,
                 OnOverlayButtonPressed,
-                () => TryMove(-1),
+                RestartFromPause,
                 () => TryMove(-1),
                 () => TryMove(1),
-                () => TryMove(1),
-                TryRotate,
-                BeginSoftDrop,
+                () => BeginButtonMove(-1),
+                () => RepeatButtonMove(-1),
+                () => EndButtonMove(-1),
+                () => BeginButtonMove(1),
+                () => RepeatButtonMove(1),
+                () => EndButtonMove(1),
+                OnRotateButtonPressed,
+                OnDropButtonPressed,
                 () => uiSoftDropHeld = false,
                 TryHardDrop);
 
@@ -117,6 +126,7 @@ namespace FlowSand.Runtime
             {
                 softDropHeld = false;
                 uiSoftDropHeld = false;
+                lockedButtonDirection = 0;
                 sfxPlayer.PlayLock();
             }
 
@@ -219,6 +229,7 @@ namespace FlowSand.Runtime
         {
             softDropHeld = false;
             uiSoftDropHeld = false;
+            lockedButtonDirection = 0;
             if (!initialized || match.Phase != FlowSandMatchCoordinator.GamePhase.Playing)
             {
                 return;
@@ -230,7 +241,8 @@ namespace FlowSand.Runtime
                 GameTexts.PausedTitle,
                 GameTexts.PausedSubtitle,
                 GameTexts.PausedInstructions,
-                GameTexts.Resume);
+                GameTexts.Resume,
+                true);
             view.SetPauseButton(true, GameTexts.Resume);
         }
 
@@ -261,12 +273,14 @@ namespace FlowSand.Runtime
             board.Reset(random);
             softDropHeld = false;
             uiSoftDropHeld = false;
+            lockedButtonDirection = 0;
             gameOverEffectPlaying = false;
             gameOverEffectTimer = 0f;
             gameOverOverlayRows = 0;
             match.StartMatch();
 
             view.HideCombo();
+            view.HideControlHint();
             view.SetOverlay(false);
             view.SetPauseButton(true);
 
@@ -335,13 +349,17 @@ namespace FlowSand.Runtime
 
             if (match.Phase == FlowSandMatchCoordinator.GamePhase.Playing)
             {
+                softDropHeld = false;
+                uiSoftDropHeld = false;
+                lockedButtonDirection = 0;
                 match.TogglePause();
                 view.SetOverlay(
                     true,
                     GameTexts.PausedTitle,
                     GameTexts.PausedSubtitle,
                     GameTexts.PausedInstructions,
-                    GameTexts.Resume);
+                    GameTexts.Resume,
+                    true);
                 view.SetPauseButton(true, GameTexts.Resume);
                 return;
             }
@@ -363,6 +381,63 @@ namespace FlowSand.Runtime
                 sfxPlayer.PlayMove();
                 boardVisualDirty = true;
             }
+        }
+
+        private void BeginButtonMove(int direction)
+        {
+            if (lockedButtonDirection != 0)
+            {
+                return;
+            }
+
+            lockedButtonDirection = direction;
+            RegisterBottomControlUse();
+            TryMove(direction);
+        }
+
+        private void RepeatButtonMove(int direction)
+        {
+            if (lockedButtonDirection == direction)
+            {
+                TryMove(direction);
+            }
+        }
+
+        private void EndButtonMove(int direction)
+        {
+            if (lockedButtonDirection == direction)
+            {
+                lockedButtonDirection = 0;
+            }
+        }
+
+        private void OnRotateButtonPressed()
+        {
+            RegisterBottomControlUse();
+            TryRotate();
+        }
+
+        private void OnDropButtonPressed()
+        {
+            RegisterBottomControlUse();
+            BeginSoftDrop();
+        }
+
+        private void RegisterBottomControlUse()
+        {
+            if (controlHintShown || match.Phase != FlowSandMatchCoordinator.GamePhase.Playing)
+            {
+                return;
+            }
+
+            bottomControlUseCount += 1;
+            if (bottomControlUseCount < ControlHintUseThreshold)
+            {
+                return;
+            }
+
+            controlHintShown = true;
+            view.ShowControlHint(GameTexts.VirtualJoystickHint);
         }
 
         private void TryRotate()
@@ -471,6 +546,14 @@ namespace FlowSand.Runtime
             }
 
             StartGame();
+        }
+
+        private void RestartFromPause()
+        {
+            if (match.Phase == FlowSandMatchCoordinator.GamePhase.Paused)
+            {
+                StartGame();
+            }
         }
 
         private void OnHighScoreChanged(int highScore)

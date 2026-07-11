@@ -26,10 +26,12 @@ namespace FlowSand.Runtime
         private static readonly Color Muted = Hex("8FA7C4");
         private Button pauseButton;
         private Button overlayButton;
+        private Button overlaySecondaryButton;
         private TMP_Text titleText, subtitleText, scoreText, bestText, speedText, messageText;
         private GameObject dimmer;
         private OverlayReveal overlayReveal;
         private ComboPopup comboPopup;
+        private ComboPopup controlHintPopup;
         private TMP_FontAsset fontAsset;
         private int displayedScore = int.MinValue, displayedBest = int.MinValue, displayedSpeed = int.MinValue;
         public RawImage BoardImage { get; private set; }
@@ -43,7 +45,7 @@ namespace FlowSand.Runtime
             go.AddComponent<InputSystemUIInputModule>();
         }
 
-        public async Awaitable BuildAsync(Action pause, Action overlay, Action leftPress, Action leftRepeat, Action rightPress, Action rightRepeat, Action rotate, Action dropPress, Action dropRelease, Action hardDrop)
+        public async Awaitable BuildAsync(Action pause, Action overlay, Action overlaySecondary, Action swipeLeft, Action swipeRight, Action leftPress, Action leftRepeat, Action leftRelease, Action rightPress, Action rightRepeat, Action rightRelease, Action rotate, Action dropPress, Action dropRelease, Action hardDrop)
         {
             Font sourceFont = Resources.Load<Font>("Fonts/NotoSansSC-FlowSand");
             if (sourceFont == null)
@@ -105,8 +107,8 @@ namespace FlowSand.Runtime
             boardImageAspect.aspectRatio = BoardAspectRatio;
             BoardImage.raycastTarget = true;
             BoardSwipeInput swipeInput = BoardImage.gameObject.AddComponent<BoardSwipeInput>();
-            swipeInput.OnSwipeLeft = leftPress;
-            swipeInput.OnSwipeRight = rightPress;
+            swipeInput.OnSwipeLeft = swipeLeft;
+            swipeInput.OnSwipeRight = swipeRight;
             swipeInput.OnSwipeUp = rotate;
             swipeInput.OnSwipeDownPress = dropPress;
             swipeInput.OnSwipeDownRelease = dropRelease;
@@ -116,25 +118,46 @@ namespace FlowSand.Runtime
             comboPopup = comboText.gameObject.AddComponent<ComboPopup>();
             comboPopup.Hide();
 
-            CreateControls(safe, pause, leftPress, leftRepeat, rightPress, rightRepeat, rotate, dropPress, dropRelease);
+            TMP_Text controlHintText = Text("Control Hint", boardSlot, "", 34, TextColor, TextAlignmentOptions.Center, L(.5f, .5f, .5f, .5f, -300, -90, 300, 90));
+            controlHintText.enableWordWrapping = true;
+            controlHintText.overflowMode = TextOverflowModes.Overflow;
+            controlHintText.fontStyle = FontStyles.Bold;
+            controlHintText.outlineColor = Background;
+            controlHintText.outlineWidth = 0.2f;
+            controlHintPopup = controlHintText.gameObject.AddComponent<ComboPopup>();
+            controlHintPopup.Hide();
+
+            CreateControls(safe, pause, leftPress, leftRepeat, leftRelease, rightPress, rightRepeat, rightRelease, rotate, dropPress, dropRelease);
             dimmer = Image("Dimmer", root.transform, Hex("050710D9"), Stretch()).gameObject;
             dimmer.GetComponent<Image>().raycastTarget = true;
-            Transform panel = Container("Overlay", root.transform, L(.5f, .5f, .5f, .5f, -420, -500, 420, 500));
+            Transform panel = Container("Overlay", root.transform, L(.5f, .5f, .5f, .5f, -420, -560, 420, 560));
             Image("Border", panel, Accent, Stretch());
             Transform content = Container("Content", panel, Stretch(new Vector2(5, 5), new Vector2(-5, -5)));
             Image("Surface", content, Surface, Stretch());
-            titleText = Text("Title", content, GameTexts.GameName, 76, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 60, -280, -60, -80));
-            subtitleText = Text("Subtitle", content, GameTexts.StartSubtitle, 34, Muted, TextAlignmentOptions.Top, L(0, 1, 1, 1, 70, -530, -70, -330));
-            messageText = Text("Message", content, "", 34, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 70, -740, -70, -580));
+            titleText = Text("Title", content, GameTexts.GameName, 76, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 60, -250, -60, -60));
+            subtitleText = Text("Subtitle", content, GameTexts.StartSubtitle, 34, Muted, TextAlignmentOptions.Top, L(0, 1, 1, 1, 70, -550, -70, -280));
+            subtitleText.enableWordWrapping = true;
+            subtitleText.overflowMode = TextOverflowModes.Overflow;
+            subtitleText.enableAutoSizing = true;
+            subtitleText.fontSizeMin = 26;
+            subtitleText.fontSizeMax = 34;
+            messageText = Text("Message", content, "", 34, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 70, -780, -70, -580));
             messageText.enableWordWrapping = true;
+            messageText.overflowMode = TextOverflowModes.Overflow;
             messageText.enableAutoSizing = true;
             messageText.fontSizeMin = 28;
             messageText.fontSizeMax = 42;
-            overlayButton = Button("Overlay Button", content, GameTexts.Start, L(.5f, 0, .5f, 0, -210, 70, 210, 182), Accent, Background);
+            overlayButton = Button("Overlay Button", content, GameTexts.Start, L(.5f, 0, .5f, 0, -210, 60, 210, 172), Accent, Background);
             TMP_Text startButtonText = overlayButton.GetComponentInChildren<TMP_Text>();
             startButtonText.fontSize = 40;
             startButtonText.fontStyle = FontStyles.Bold;
             overlayButton.onClick.AddListener(() => overlay());
+            overlaySecondaryButton = Button("Overlay Secondary Button", content, GameTexts.RestartNow, L(.5f, 0, .5f, 0, 12, 60, 312, 172), RaisedSurface, TextColor);
+            TMP_Text secondaryButtonText = overlaySecondaryButton.GetComponentInChildren<TMP_Text>();
+            secondaryButtonText.fontSize = 36;
+            secondaryButtonText.fontStyle = FontStyles.Bold;
+            overlaySecondaryButton.onClick.AddListener(() => overlaySecondary());
+            overlaySecondaryButton.gameObject.SetActive(false);
             panel.gameObject.AddComponent<CanvasGroup>();
             overlayReveal = panel.gameObject.AddComponent<OverlayReveal>();
         }
@@ -150,13 +173,23 @@ namespace FlowSand.Runtime
 
         public void HideCombo() => comboPopup.Hide();
 
-        public void SetOverlay(bool visible, string title = null, string subtitle = null, string message = null, string buttonText = null)
+        public void ShowControlHint(string message) => controlHintPopup.ShowMessage(message, 3f);
+
+        public void HideControlHint() => controlHintPopup.Hide();
+
+        public void SetOverlay(bool visible, string title = null, string subtitle = null, string message = null, string buttonText = null, bool showSecondaryButton = false)
         {
             dimmer.SetActive(visible);
             if (title != null) titleText.text = title;
             if (subtitle != null) subtitleText.text = subtitle;
             if (message != null) messageText.text = message;
             if (buttonText != null) overlayButton.GetComponentInChildren<TMP_Text>().text = buttonText;
+            overlaySecondaryButton.gameObject.SetActive(visible && showSecondaryButton);
+            Apply(
+                overlayButton.GetComponent<RectTransform>(),
+                showSecondaryButton
+                    ? L(.5f, 0, .5f, 0, -312, 60, -12, 172)
+                    : L(.5f, 0, .5f, 0, -210, 60, 210, 172));
             if (visible) overlayReveal.Show(); else overlayReveal.Hide();
         }
 
@@ -192,7 +225,7 @@ namespace FlowSand.Runtime
             return canvasPadding;
         }
 
-        private void CreateControls(Transform parent, Action pause, Action leftPress, Action leftRepeat, Action rightPress, Action rightRepeat, Action rotate, Action dropPress, Action dropRelease)
+        private void CreateControls(Transform parent, Action pause, Action leftPress, Action leftRepeat, Action leftRelease, Action rightPress, Action rightRepeat, Action rightRelease, Action rotate, Action dropPress, Action dropRelease)
         {
             // Compact Bottom Controls Layout for comfortable one-handed use
             const float secondaryWidth = 160, dropWidth = 200, gap = 14, height = 90, bottom = 20;
@@ -204,7 +237,7 @@ namespace FlowSand.Runtime
             x += dropWidth + gap;
             pauseButton = Button("Pause", parent, GameTexts.Pause, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height), RaisedSurface, TextColor);
             pauseButton.onClick.AddListener(() => pause());
-            Hold(left, leftPress, leftRepeat, null); Hold(right, rightPress, rightRepeat, null); Hold(drop, dropPress, null, dropRelease);
+            Hold(left, leftPress, leftRepeat, leftRelease); Hold(right, rightPress, rightRepeat, rightRelease); Hold(drop, dropPress, null, dropRelease);
             rotateButton.onClick.AddListener(() => rotate());
         }
 

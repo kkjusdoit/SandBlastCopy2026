@@ -147,6 +147,24 @@ public class FlowSandMatchCoordinatorTests
         Assert.That(match.Combo, Is.EqualTo(0));
     }
 
+    [Test]
+    public void ScoreUsesCoarseCellEquivalentsInsteadOfRawGrainCount()
+    {
+        FlowSandMatchCoordinator match = new(0);
+        FlowSandBoard board = new(4, 6, 2);
+        System.Random random = new(0);
+        board.Reset(random);
+        match.StartMatch();
+
+        QueueClear(match, board, 0, 4);
+        match.UpdateGameplay(board, random, 0.01f, false);
+        Assert.That(match.Score, Is.EqualTo(1));
+
+        QueueClear(match, board, 0, 8);
+        match.UpdateGameplay(board, random, 0.01f, false);
+        Assert.That(match.Score, Is.EqualTo(5));
+    }
+
     private static void SetBridge(FlowSandBoard board, int y, CellColor color)
     {
         for (int x = 0; x < board.SandCols; x++)
@@ -162,11 +180,15 @@ public class FlowSandMatchCoordinatorTests
         grid[board.ToIndex(x, y)] = color;
     }
 
-    private static void QueueClear(FlowSandMatchCoordinator match, FlowSandBoard board, int x)
+    private static void QueueClear(FlowSandMatchCoordinator match, FlowSandBoard board, int x, int count = 1)
     {
-        SetSand(board, x, 0, CellColor.Coral);
         List<int> pending = (List<int>)GetPrivateField(match, "pendingClearIndices");
-        pending.Add(board.ToIndex(x, 0));
+        for (int i = 0; i < count; i++)
+        {
+            int index = board.ToIndex((x + i) % board.SandCols, i / board.SandCols);
+            SetSand(board, index % board.SandCols, index / board.SandCols, CellColor.Coral);
+            pending.Add(index);
+        }
         SetPrivateField(match, "pendingClearMask", new bool[board.CellCount]);
         SetPrivateField(match, "clearTimer", 0f);
     }

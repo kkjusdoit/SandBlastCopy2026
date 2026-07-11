@@ -36,6 +36,7 @@ namespace FlowSand.Runtime
         private const int MaximumSpeedLevel = 10;
         private const float SandStepInterval = 0.004f;
         private const int MaximumSandStepsPerFrame = 8;
+        private const int ScorePerCoarseCell = 1;
 
         private readonly List<int> pendingClearIndices = new();
         private bool[] pendingClearMask = Array.Empty<bool>();
@@ -254,7 +255,9 @@ namespace FlowSand.Runtime
                 ClearPendingMask();
                 pendingClearIndices.Clear();
                 Combo += 1;
-                Score += cleared * 2 * Combo;
+                int grainsPerCoarseCell = board.GrainScale * board.GrainScale;
+                int clearedCellEquivalents = Mathf.Max(1, cleared / grainsPerCoarseCell);
+                Score += clearedCellEquivalents * ScorePerCoarseCell * Combo;
                 events |= GameplayEvent.BoardChanged | GameplayEvent.HudChanged | GameplayEvent.Cleared;
                 if (Score > HighScore)
                 {
