@@ -319,7 +319,7 @@ namespace FlowSand.Runtime
                 true,
                 "FLOW SAND",
                 "Drop blocks. Let them crumble.\nBridge one color from edge to edge.",
-                "MOVE  /  ROTATE  /  SOFT DROP",
+                "DRAG ON BOARD: LEFT / RIGHT TO MOVE\nUP TO ROTATE · DOWN TO DROP",
                 "START RUN");
         }
 

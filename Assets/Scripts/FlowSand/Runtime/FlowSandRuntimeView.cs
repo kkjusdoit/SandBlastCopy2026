@@ -90,6 +90,16 @@ namespace FlowSand.Runtime
             AspectRatioFitter boardImageAspect = BoardImage.gameObject.AddComponent<AspectRatioFitter>();
             boardImageAspect.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
             boardImageAspect.aspectRatio = BoardAspectRatio;
+            BoardImage.raycastTarget = true;
+            BoardSwipeInput swipeInput = BoardImage.gameObject.AddComponent<BoardSwipeInput>();
+            swipeInput.OnSwipeLeft = leftPress;
+            swipeInput.OnSwipeRight = rightPress;
+            swipeInput.OnSwipeUp = rotate;
+            swipeInput.OnSwipeDown = () =>
+            {
+                dropPress();
+                dropRelease();
+            };
 
             TMP_Text comboText = Text("Combo", boardSlot, "", 54, Accent, TextAlignmentOptions.Center, L(.5f, 1, .5f, 1, -260, -150, 260, -60));
             comboText.fontStyle = FontStyles.Bold;
@@ -144,9 +154,9 @@ namespace FlowSand.Runtime
             // Compact Bottom Controls Layout for comfortable one-handed use
             const float secondaryWidth = 160, dropWidth = 200, gap = 14, height = 90, bottom = 20;
             float x = -((secondaryWidth * 3) + dropWidth + (gap * 3)) / 2;
-            Button left = Button("Left", parent, "◀", L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height), RaisedSurface, TextColor); x += secondaryWidth + gap;
-            Button right = Button("Right", parent, "▶", L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height), RaisedSurface, TextColor); x += secondaryWidth + gap;
-            Button rotateButton = Button("Rotate", parent, "↻", L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height), RaisedSurface, TextColor); x += secondaryWidth + gap;
+            Button left = IconButton("Left", parent, ControlIcon.Left, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height)); x += secondaryWidth + gap;
+            Button right = IconButton("Right", parent, ControlIcon.Right, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height)); x += secondaryWidth + gap;
+            Button rotateButton = IconButton("Rotate", parent, ControlIcon.Rotate, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height)); x += secondaryWidth + gap;
             Button drop = Button("Drop", parent, "DROP", L(.5f, 0, .5f, 0, x, bottom, x + dropWidth, bottom + height), Accent, Background);
             Hold(left, leftPress, leftRepeat, null); Hold(right, rightPress, rightRepeat, null); Hold(drop, dropPress, null, dropRelease);
             rotateButton.onClick.AddListener(() => rotate());
@@ -172,11 +182,58 @@ namespace FlowSand.Runtime
         {
             GameObject go = new(name, typeof(RectTransform), typeof(Image), typeof(Button)); go.transform.SetParent(parent, false); go.GetComponent<Image>().color = background; Button button = go.GetComponent<Button>(); ColorBlock colors = button.colors; colors.highlightedColor = Hex("68D7FF"); colors.pressedColor = Hex("168EC2"); button.colors = colors; Text("Label", go.transform, label, 32, foreground, TextAlignmentOptions.Center, Stretch()); Apply(go.GetComponent<RectTransform>(), layout); return button;
         }
+        private Button IconButton(string name, Transform parent, ControlIcon icon, Layout layout)
+        {
+            Button button = Button(name, parent, string.Empty, layout, RaisedSurface, TextColor);
+            RawImage image = RawImage("Icon", button.transform, L(.5f, .5f, .5f, .5f, -28, -28, 28, 28));
+            image.texture = CreateControlIcon(icon);
+            image.color = TextColor;
+            return button;
+        }
+        private static Texture2D CreateControlIcon(ControlIcon icon)
+        {
+            const int size = 64;
+            Texture2D texture = new(size, size, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            Color32[] pixels = new Color32[size * size];
+            Color32 white = new(255, 255, 255, 255);
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    bool filled;
+                    if (icon == ControlIcon.Rotate)
+                    {
+                        float dx = x - 31.5f, dy = y - 31.5f;
+                        float radius = Mathf.Sqrt((dx * dx) + (dy * dy));
+                        bool ring = radius >= 18f && radius <= 23f;
+                        bool arrowHead = x >= 43 && x <= 55 && Mathf.Abs(y - 31) <= (55 - x);
+                        filled = ring || arrowHead;
+                    }
+                    else
+                    {
+                        int px = icon == ControlIcon.Left ? x : size - 1 - x;
+                        bool head = px >= 10 && px <= 36 && Mathf.Abs(y - 32) <= (px - 10);
+                        bool shaft = px >= 32 && px <= 54 && y >= 26 && y <= 38;
+                        filled = head || shaft;
+                    }
+                    if (filled) pixels[(y * size) + x] = white;
+                }
+            }
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            return texture;
+        }
         private static void Hold(Button button, Action press, Action repeat, Action release) { HoldButton hold = button.gameObject.AddComponent<HoldButton>(); hold.OnPressed = press; hold.OnRepeated = repeat; hold.OnReleased = release; }
         private static void Apply(RectTransform rect, Layout layout) { rect.anchorMin = layout.Min; rect.anchorMax = layout.Max; rect.offsetMin = layout.OffsetMin; rect.offsetMax = layout.OffsetMax; }
         private static Layout Stretch(Vector2? min = null, Vector2? max = null) => new(Vector2.zero, Vector2.one, min ?? Vector2.zero, max ?? Vector2.zero);
         private static Layout L(float minX, float minY, float maxX, float maxY, float left, float bottom, float right, float top) => new(new Vector2(minX, minY), new Vector2(maxX, maxY), new Vector2(left, bottom), new Vector2(right, top));
         private static Color Hex(string hex) { ColorUtility.TryParseHtmlString("#" + hex, out Color color); return color; }
+        private enum ControlIcon { Left, Right, Rotate }
         private readonly struct Layout { public Layout(Vector2 min, Vector2 max, Vector2 offsetMin, Vector2 offsetMax) { Min = min; Max = max; OffsetMin = offsetMin; OffsetMax = offsetMax; } public Vector2 Min { get; } public Vector2 Max { get; } public Vector2 OffsetMin { get; } public Vector2 OffsetMax { get; } }
     }
 }

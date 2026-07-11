@@ -137,6 +137,68 @@
 3. 点击 Play 运行。
 4. 运行后会自动生成游戏运行时界面，无需手工搭建场景对象。
 
+## 微信小游戏 WASM 代码分包
+
+### 已知限制：自动函数收集不可靠
+
+本项目不能只依赖 `wasm-code-split` 插件的自动函数收集来决定首包函数。实际真机收集曾长期只增加少量 Unity/C++ 运行时函数，例如：
+
+- `std::__2::__libcpp_relaxed_store`
+- `MemoryManager::InitializeMemoryLazily`
+- `DynamicHeapAllocator::Allocate`
+- `Baselib_SystemSemaphore_CreateInplace`
+
+这些函数并非流沙玩法热路径。若出现“每次运行固定新增 1 个函数”的情况，不要反复生成 profile 分包；插件只要新增数大于 `0` 就可能显示“当前新增函数过多”，该提示不代表收集质量足够。
+
+项目的固定策略是：真机自动收集仅用于补充和验证，核心玩法热函数必须从当前构建的 WASM 符号表中筛选并手动上报。
+
+### 何时必须重新分包
+
+在插件中查看“当前代码 md5”。只要 MD5 与上次 release 分包不同，就不能复用旧分包，必须重新生成 profile 和 release 分包。
+
+- C#、Unity 插件或构建配置变化通常会改变 WASM MD5。
+- 纯图片、文案或外部资源变化不一定改变 WASM MD5，但重新导出仍可能覆盖插件生成的分包文件。
+- 每次 Unity 重新导出后，都应重新检查 MD5 和分包状态。
+- 旧的函数清单不能直接假定有效；IL2CPP 函数名中的哈希可能变化，必须对新符号表重新校验。
+
+### 标准分包流程
+
+1. 从 Unity 导出用于收集的 profile 包到：
+   `/Users/linkunkun/WeChatProjects/SandFlow-WasmCollection/minigame`
+2. 在微信开发者工具中打开上述 `minigame` 目录，再启用 WASM 代码分包。启用后不要再次从 Unity 覆盖导出。
+3. 若插件允许，选择上一次稳定 release 版本进行增量分包。
+4. 等待后台预处理完成。所有“生成 profile/release”按钮都只点击一次，禁止连点或重试叠加任务。
+5. 从当前导出目录的 `webgl.wasm.symbols.unityweb` 中筛选玩法热函数，并生成每行一个完整函数名的文本文件。
+6. 点击插件中的“选择函数名文件手动上报”，选择热函数清单。
+7. 检查分包日志，必须出现类似 `[reportFuncNameList] 上报函数数量: 35`，且不得出现“未找到 symbols 中的 key”。
+8. 等后台“新增收集函数个数”更新后，只点击一次“生成 profile 版分包”。
+9. 确认 profile 首包函数中已经包含 `FlowSandGameController`、`FlowSandMatchCoordinator`、`FlowSandBoard`、`FlowSandBoardRenderer` 等真实玩法函数。
+10. Android 使用真机调试二维码，iOS 使用预览二维码，重新扫码当前 profile 版本，覆盖冷启动、开局、移动、旋转、软降、沙粒下落、消除、结算和重开。
+11. 对新增函数先查看函数名：玩法热函数需要补充；`std::`、`Baselib`、内存分配或信号量等底层函数可忽略，不能仅因新增数为 `1` 就重新生成 profile。
+12. 双端验证通过后，只点击一次“生成 release 版分包”。再次用 Android/iOS 验证 release 版本，最后通过开发者工具右上角“上传”提交代码包。
+
+### 热函数清单
+
+当前仓库中的 [FlowSand-Wasm-HotFunctions.txt](FlowSand-Wasm-HotFunctions.txt) 是热路径选择模板，覆盖：
+
+- `Update` / `LateUpdate` 与可视刷新
+- 沙粒模拟、下落、碰撞
+- 桥接检测与消除
+- 棋盘纹理刷新
+- 移动、旋转、软降输入
+- HUD 更新
+
+每次 WASM MD5 变化后，必须先确认该文件的每一行仍能在新的 `webgl.wasm.symbols.unityweb` 中精确匹配；若方法哈希变化，应按新符号表重新生成，不能直接上传旧文件。
+
+### 验收与故障排查
+
+- 分包日志：`minigame/.plugincache/codesplit/log/latest.log`
+- 函数名导出：插件中的“获取首包函数和新增函数的函数名”
+- 成功的 profile 首包应包含真实 `FlowSand...` 函数，而不应只有 Emscripten、IL2CPP、Baselib 和 C++ 标准库初始化函数。
+- 如果出现 `message: not found`，先检查日志中是否在一秒内重复触发了两个 `startsplit`；不要继续连点“重试”。
+- 如果长时间停在“下载和压缩分包代码”，检查是否同时轮询了不同 `sub_version`。服务端可能已完成其中一个任务，但界面被旧任务卡住。
+- 生成 release 后不要再从 Unity 导出到同一目录，否则会覆盖最终分包产物。
+
 ## 仓库说明
 
 - `Assets/Scripts/FlowSand/Core`：核心规则、双网格、沙粒模拟、消除逻辑
