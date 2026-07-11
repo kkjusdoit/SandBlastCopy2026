@@ -1,3 +1,4 @@
+using System.Collections.Generic;
 using System.Reflection;
 using FlowSand.Core;
 using FlowSand.Runtime;
@@ -97,6 +98,38 @@ public class FlowSandMatchCoordinatorTests
         Assert.That(board.BridgeScanCount, Is.EqualTo(1));
     }
 
+    [Test]
+    public void ComboIncrementsForChainedClearsAndResetsWhenAPieceLocks()
+    {
+        FlowSandMatchCoordinator match = new(0);
+        FlowSandBoard board = new(4, 6, 1);
+        System.Random random = new(0);
+        board.Reset(random);
+        match.StartMatch();
+
+        QueueClear(match, board, 0);
+        match.UpdateGameplay(board, random, 0.01f, false);
+        Assert.That(match.Combo, Is.EqualTo(1));
+
+        QueueClear(match, board, 1);
+        match.UpdateGameplay(board, random, 0.01f, false);
+        Assert.That(match.Combo, Is.EqualTo(2));
+
+        SetCurrentPiece(board, new ActivePiece
+        {
+            Kind = TetrominoKind.O,
+            Color = CellColor.Coral,
+            Rotation = 0,
+            Col = 0,
+            Row = 0,
+        });
+        SetPrivateField(match, "waitingForSandToSettle", false);
+        SetPrivateField(match, "pieceFallTimer", match.GetCurrentDropInterval());
+        match.UpdateGameplay(board, random, 0f, false);
+
+        Assert.That(match.Combo, Is.EqualTo(0));
+    }
+
     private static void SetBridge(FlowSandBoard board, int y, CellColor color)
     {
         for (int x = 0; x < board.SandCols; x++)
@@ -110,6 +143,15 @@ public class FlowSandMatchCoordinatorTests
         FieldInfo field = typeof(FlowSandBoard).GetField("sandGrid", BindingFlags.NonPublic | BindingFlags.Instance);
         CellColor[] grid = (CellColor[])field.GetValue(board);
         grid[board.ToIndex(x, y)] = color;
+    }
+
+    private static void QueueClear(FlowSandMatchCoordinator match, FlowSandBoard board, int x)
+    {
+        SetSand(board, x, 0, CellColor.Coral);
+        List<int> pending = (List<int>)GetPrivateField(match, "pendingClearIndices");
+        pending.Add(board.ToIndex(x, 0));
+        SetPrivateField(match, "pendingClearMask", new bool[board.CellCount]);
+        SetPrivateField(match, "clearTimer", 0f);
     }
 
     private static void SetNextPiece(FlowSandBoard board, TetrominoKind kind)
@@ -127,5 +169,11 @@ public class FlowSandMatchCoordinatorTests
     {
         FieldInfo field = target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance);
         field.SetValue(target, value);
+    }
+
+    private static object GetPrivateField(object target, string name)
+    {
+        FieldInfo field = target.GetType().GetField(name, BindingFlags.NonPublic | BindingFlags.Instance);
+        return field.GetValue(target);
     }
 }

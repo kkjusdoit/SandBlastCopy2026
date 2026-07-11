@@ -107,6 +107,7 @@ namespace FlowSand.Runtime
             if (update.Cleared)
             {
                 sfxPlayer.PlayClear();
+                view.ShowCombo(match.Combo);
             }
 
             if (update.HighScoreChanged)
@@ -182,6 +183,7 @@ namespace FlowSand.Runtime
             gameOverOverlayRows = 0;
             match.StartMatch();
 
+            view.HideCombo();
             view.SetOverlay(false);
             view.SetPauseButton(true);
 
@@ -207,6 +209,7 @@ namespace FlowSand.Runtime
             boardVisualDirty = true;
             nextVisualDirty = true;
             match.MarkGameOver();
+            view.HideCombo();
             view.SetPauseButton(false);
             gameOverEffectPlaying = true;
             gameOverEffectTimer = 0f;
@@ -310,6 +313,7 @@ namespace FlowSand.Runtime
         private void ShowTitleScreen()
         {
             match.ShowTitle();
+            view.HideCombo();
             view.SetPauseButton(false);
             view.SetOverlay(
                 true,
