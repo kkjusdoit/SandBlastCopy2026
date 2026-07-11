@@ -73,6 +73,7 @@ public class FlowSandMatchCoordinatorTests
         Assert.That(updateBeforeSandStep.NeedsSpawn, Is.False);
         Assert.That(updateBeforeSandStep.PieceLocked, Is.True);
         Assert.That(updateBeforeSandStep.BoardChanged, Is.True);
+        Assert.That(match.CanControlPiece, Is.False);
 
         match.UpdateGameplay(board, random, 0.025f, false);
 

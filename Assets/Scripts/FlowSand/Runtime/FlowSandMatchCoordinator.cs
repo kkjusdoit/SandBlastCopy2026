@@ -60,7 +60,7 @@ namespace FlowSand.Runtime
         public float ElapsedTime { get; private set; }
         public bool FlashVisible { get; private set; }
         public bool HasPendingClear => pendingClearIndices.Count > 0;
-        public bool CanControlPiece => Phase == GamePhase.Playing && !HasPendingClear;
+        public bool CanControlPiece => Phase == GamePhase.Playing && !HasPendingClear && !waitingForSandToSettle;
         public bool[] PendingClearMask => pendingClearMask;
 
         public void ShowTitle()

@@ -19,8 +19,8 @@ MonoBehaviour:
     assetLoadType: 1
     compressDataPackage: 1
     VideoUrl: 
-    relativeDST: /Users/linkunkun/WeChatProjects/SandFlow
-    DST: /Users/linkunkun/WeChatProjects/SandFlow
+    relativeDST: /Users/linkunkun/WeChatProjects/SandFlow-WasmCollection
+    DST: /Users/linkunkun/WeChatProjects/SandFlow-WasmCollection
     StreamCDN: 
     bundleHashLength: 32
     bundlePathIdentifier: StreamingAssets;

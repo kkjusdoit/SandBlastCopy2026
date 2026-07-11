@@ -10,6 +10,7 @@ namespace FlowSand.Runtime
     {
         private const int ShadeVariants = 18;
         private static readonly Color32 FlashColor = new(255, 255, 255, 255);
+        private static readonly Color32 GameOverOverlayColor = new(112, 116, 124, 255);
 
         private readonly FlowSandBoard board;
         private readonly Color32[] palette;
@@ -46,7 +47,7 @@ namespace FlowSand.Runtime
             nextImage.texture = nextTexture;
         }
 
-        public void RedrawBoard(bool[] flashingCells, bool flashVisible)
+        public void RedrawBoard(bool[] flashingCells, bool flashVisible, int gameOverOverlayRows = 0)
         {
             int width = boardTexture.width;
             int height = boardTexture.height;
@@ -85,6 +86,8 @@ namespace FlowSand.Runtime
             {
                 DrawActivePiece(board.CurrentPiece.Value);
             }
+
+            DrawGameOverOverlay(gameOverOverlayRows);
 
             boardTexture.Apply(false, false);
         }
@@ -183,6 +186,20 @@ namespace FlowSand.Runtime
 
             int jitter = ((x * 13) + (y * 7)) % 18;
             return grainColors[((int)cell * ShadeVariants) + jitter];
+        }
+
+        private void DrawGameOverOverlay(int coarseRows)
+        {
+            int overlayRows = Mathf.Clamp(coarseRows, 0, board.CoarseRows) * board.GrainScale;
+            int width = boardTexture.width;
+            for (int y = 1; y <= overlayRows; y++)
+            {
+                for (int x = 1; x < width - 1; x++)
+                {
+                    int index = (y * width) + x;
+                    boardPixels[index] = Color32.Lerp(boardPixels[index], GameOverOverlayColor, 0.72f);
+                }
+            }
         }
 
         private void SetBoardPixel(int x, int y, Color32 color)

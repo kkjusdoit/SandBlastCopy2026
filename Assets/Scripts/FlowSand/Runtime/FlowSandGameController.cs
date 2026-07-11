@@ -11,6 +11,7 @@ namespace FlowSand.Runtime
         private const int CoarseRows = 20;
         private const int GrainScale = 16;
         private const string HighScoreKey = "FlowSand.HighScore";
+        private const float GameOverRowInterval = 0.05f;
 
         private readonly Color32 backgroundColor = new(18, 20, 44, 255);
         private readonly Color32 borderColor = new(62, 201, 255, 255);
@@ -36,6 +37,9 @@ namespace FlowSand.Runtime
         private bool boardVisualDirty;
         private bool nextVisualDirty;
         private bool hudVisualDirty;
+        private bool gameOverEffectPlaying;
+        private float gameOverEffectTimer;
+        private int gameOverOverlayRows;
         private bool initialized;
 
         private async void Start()
@@ -78,6 +82,12 @@ namespace FlowSand.Runtime
 
             HandleKeyboardShortcuts();
             keyboard.EndFrame();
+            if (gameOverEffectPlaying)
+            {
+                UpdateGameOverEffect(Time.unscaledDeltaTime);
+                return;
+            }
+
             if (match.Phase != FlowSandMatchCoordinator.GamePhase.Playing)
             {
                 return;
@@ -89,6 +99,8 @@ namespace FlowSand.Runtime
 
             if (update.PieceLocked)
             {
+                softDropHeld = false;
+                uiSoftDropHeld = false;
                 sfxPlayer.PlayLock();
             }
 
@@ -119,7 +131,8 @@ namespace FlowSand.Runtime
         private void HandleKeyboardShortcuts()
         {
             if ((keyboard.GetKeyDown(KeyCode.Return) || keyboard.GetKeyDown(KeyCode.KeypadEnter)) &&
-                match.Phase is FlowSandMatchCoordinator.GamePhase.Title or FlowSandMatchCoordinator.GamePhase.GameOver)
+                !gameOverEffectPlaying &&
+                (match.Phase is FlowSandMatchCoordinator.GamePhase.Title or FlowSandMatchCoordinator.GamePhase.GameOver))
             {
                 StartGame();
             }
@@ -164,6 +177,9 @@ namespace FlowSand.Runtime
             board.Reset(random);
             softDropHeld = false;
             uiSoftDropHeld = false;
+            gameOverEffectPlaying = false;
+            gameOverEffectTimer = 0f;
+            gameOverOverlayRows = 0;
             match.StartMatch();
 
             view.SetOverlay(false);
@@ -192,13 +208,36 @@ namespace FlowSand.Runtime
             nextVisualDirty = true;
             match.MarkGameOver();
             view.SetPauseButton(false);
+            gameOverEffectPlaying = true;
+            gameOverEffectTimer = 0f;
+            gameOverOverlayRows = 0;
+            sfxPlayer.PlayGameOver();
+        }
+
+        private void UpdateGameOverEffect(float deltaTime)
+        {
+            gameOverEffectTimer += deltaTime;
+            int targetRows = Mathf.Min(
+                board.CoarseRows,
+                Mathf.FloorToInt(gameOverEffectTimer / GameOverRowInterval) + 1);
+            if (targetRows != gameOverOverlayRows)
+            {
+                gameOverOverlayRows = targetRows;
+                boardVisualDirty = true;
+            }
+
+            if (gameOverOverlayRows < board.CoarseRows)
+            {
+                return;
+            }
+
+            gameOverEffectPlaying = false;
             view.SetOverlay(
                 true,
                 "ROUND OVER",
                 "The sand pile blocked the spawn lane.\nTap to rebuild the board.",
                 $"FINAL SCORE  {match.Score}     BEST  {match.HighScore}",
                 "RESTART");
-            sfxPlayer.PlayGameOver();
         }
 
         private void TogglePause()
@@ -256,13 +295,16 @@ namespace FlowSand.Runtime
 
         private void BeginSoftDrop()
         {
-            uiSoftDropHeld = true;
-            if (!match.CanControlPiece || !board.TryStepDown())
+            if (!match.CanControlPiece)
             {
                 return;
             }
 
-            boardVisualDirty = true;
+            uiSoftDropHeld = true;
+            if (board.TryStepDown())
+            {
+                boardVisualDirty = true;
+            }
         }
 
         private void ShowTitleScreen()
@@ -300,7 +342,7 @@ namespace FlowSand.Runtime
 
             if (boardVisualDirty)
             {
-                boardRenderer.RedrawBoard(match.PendingClearMask, match.FlashVisible);
+                boardRenderer.RedrawBoard(match.PendingClearMask, match.FlashVisible, gameOverOverlayRows);
                 boardVisualDirty = false;
             }
         }
