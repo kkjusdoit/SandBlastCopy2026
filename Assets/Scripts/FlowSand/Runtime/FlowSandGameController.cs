@@ -257,6 +257,7 @@ namespace FlowSand.Runtime
             };
             WX.OnHide(onWechatHide);
             WX.OnShow(onWechatShow);
+            WX.ReportGameStart();
 #endif
         }
 
