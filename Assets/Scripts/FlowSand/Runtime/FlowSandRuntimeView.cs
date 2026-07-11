@@ -9,6 +9,8 @@ namespace FlowSand.Runtime
 {
     public sealed class FlowSandRuntimeView
     {
+        private const float BoardAspectRatio = 0.5f;
+
         private static readonly Color Background = Hex("070914");
         private static readonly Color Surface = Hex("0D1124");
         private static readonly Color RaisedSurface = Hex("121A35");
@@ -49,11 +51,19 @@ namespace FlowSand.Runtime
             Text("Best Label", safe, "PERSONAL BEST", 24, Muted, TextAnchor.UpperRight, L(1, 1, 1, 1, -290, -66, 0, 0), font);
             pauseButton = Button("Pause", safe, "PAUSE", L(.5f, 1, .5f, 1, -95, -76, 95, 0), font, RaisedSurface, TextColor);
             pauseButton.onClick.AddListener(() => pause());
-            Transform board = Container("Board Frame", safe, L(0, 0, 1, 1, 0, 160, -270, -220));
+            Transform boardSlot = Container("Board Slot", safe, L(0, 0, 1, 1, 0, 160, -270, -220));
+            Transform board = Container("Board Frame", boardSlot, Stretch());
+            AspectRatioFitter boardAspect = board.gameObject.AddComponent<AspectRatioFitter>();
+            boardAspect.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            boardAspect.aspectRatio = BoardAspectRatio;
             Image("Border", board, Hex("24557A"), Stretch());
             Transform inset = Container("Inset", board, Stretch(new Vector2(5, 5), new Vector2(-5, -5)));
             Image("Surface", inset, Surface, Stretch());
-            BoardImage = RawImage("Board", inset, Stretch(new Vector2(18, 18), new Vector2(-18, -18)));
+            Transform boardImageSlot = Container("Board Image Slot", inset, Stretch(new Vector2(18, 18), new Vector2(-18, -18)));
+            BoardImage = RawImage("Board", boardImageSlot, Stretch());
+            AspectRatioFitter boardImageAspect = BoardImage.gameObject.AddComponent<AspectRatioFitter>();
+            boardImageAspect.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            boardImageAspect.aspectRatio = BoardAspectRatio;
             Transform next = Container("Next", safe, L(1, 1, 1, 1, -220, -520, 0, 0));
             Text("Next Label", next, "NEXT", 25, Muted, TextAnchor.MiddleCenter, L(0, 1, 1, 1, 0, -50, 0, 0), font);
             Transform nextFrame = Container("Next Frame", next, L(0, 1, 1, 1, 0, -278, 0, -58));
