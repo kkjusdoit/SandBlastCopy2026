@@ -29,7 +29,7 @@ namespace FlowSand.UI
                 StopCoroutine(animationRoutine);
             }
 
-            label.text = $"COMBO +{combo}";
+            label.text = $"连消 ×{combo}";
             gameObject.SetActive(true);
             animationRoutine = StartCoroutine(Animate());
         }

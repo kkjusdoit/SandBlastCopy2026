@@ -39,11 +39,12 @@ namespace FlowSand.Runtime
 
         public async Awaitable BuildAsync(Action pause, Action overlay, Action leftPress, Action leftRepeat, Action rightPress, Action rightRepeat, Action rotate, Action dropPress, Action dropRelease, Action hardDrop)
         {
-            fontAsset = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
-            if (fontAsset == null)
+            Font sourceFont = Resources.Load<Font>("Fonts/NotoSansSC-FlowSand");
+            if (sourceFont == null)
             {
-                throw new InvalidOperationException("Missing TMP font asset at Resources/Fonts & Materials/LiberationSans SDF.");
+                throw new InvalidOperationException("Missing Chinese font at Resources/Fonts/NotoSansSC-FlowSand.");
             }
+            fontAsset = TMP_FontAsset.CreateFontAsset(sourceFont);
             GameObject root = new("FlowSand UI", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             root.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
             CanvasScaler scaler = root.GetComponent<CanvasScaler>();
@@ -54,27 +55,24 @@ namespace FlowSand.Runtime
             Transform safe = Container("Safe Area", root.transform, Stretch(new Vector2(42, 42), new Vector2(-42, -42)));
 
             // Top HUD Bar Layout
-            Text("Score Label", safe, "SCORE", 20, Muted, TextAlignmentOptions.TopLeft, L(0, 1, 0, 1, 10, -40, 200, -10));
+            Text("Score Label", safe, GameTexts.Score, 24, Muted, TextAlignmentOptions.TopLeft, L(0, 1, 0, 1, 10, -48, 200, 0));
             scoreText = Text("Score", safe, "0", 72, TextColor, TextAlignmentOptions.BottomLeft, L(0, 1, 0, 1, 10, -135, 250, -45));
             scoreText.enableAutoSizing = true;
             scoreText.fontSizeMin = 36;
             scoreText.fontSizeMax = 72;
 
-            Text("Next Label", safe, "NEXT", 18, Muted, TextAlignmentOptions.Center, L(0.5f, 1, 0.5f, 1, -210, -40, -90, -10));
+            Text("Next Label", safe, GameTexts.Next, 24, Muted, TextAlignmentOptions.Center, L(0.5f, 1, 0.5f, 1, -210, -48, -90, 0));
             Transform nextFrame = Container("Next Frame", safe, L(0.5f, 1, 0.5f, 1, -210, -150, -90, -45));
             Image("Border", nextFrame, Hex("24557A"), Stretch());
             Transform nextInset = Container("Inset", nextFrame, Stretch(new Vector2(4, 4), new Vector2(-4, -4)));
             Image("Surface", nextInset, Surface, Stretch());
             NextImage = RawImage("Preview", nextInset, Stretch(new Vector2(10, 10), new Vector2(-10, -10)));
 
-            Text("Speed Label", safe, "SPEED", 18, Muted, TextAlignmentOptions.Center, L(1, 1, 1, 1, -480, -40, -360, -10));
+            Text("Speed Label", safe, GameTexts.Speed, 24, Muted, TextAlignmentOptions.Center, L(1, 1, 1, 1, -480, -48, -360, 0));
             speedText = Text("Speed", safe, "1", 38, TextColor, TextAlignmentOptions.Center, L(1, 1, 1, 1, -480, -135, -360, -45));
 
-            Text("Best Label", safe, "BEST", 18, Muted, TextAlignmentOptions.Center, L(1, 1, 1, 1, -320, -40, -170, -10));
+            Text("Best Label", safe, GameTexts.Best, 24, Muted, TextAlignmentOptions.Center, L(1, 1, 1, 1, -320, -48, -170, 0));
             bestText = Text("Best", safe, "0", 36, Hex("FFCA40"), TextAlignmentOptions.Center, L(1, 1, 1, 1, -320, -135, -170, -45));
-
-            pauseButton = Button("Pause", safe, "PAUSE", L(1, 1, 1, 1, -140, -115, 0, -35), RaisedSurface, TextColor);
-            pauseButton.onClick.AddListener(() => pause());
 
             // Maximized Game Area Layout (Centered width, maximized height)
             Transform boardSlot = Container("Board Slot", safe, L(0, 0, 1, 1, 0, 140, 0, -180));
@@ -103,17 +101,20 @@ namespace FlowSand.Runtime
             comboPopup = comboText.gameObject.AddComponent<ComboPopup>();
             comboPopup.Hide();
 
-            CreateControls(safe, leftPress, leftRepeat, rightPress, rightRepeat, rotate, dropPress, dropRelease);
+            CreateControls(safe, pause, leftPress, leftRepeat, rightPress, rightRepeat, rotate, dropPress, dropRelease);
             dimmer = Image("Dimmer", root.transform, Hex("050710D9"), Stretch()).gameObject;
             dimmer.GetComponent<Image>().raycastTarget = true;
-            Transform panel = Container("Overlay", root.transform, L(.5f, .5f, .5f, .5f, -420, -360, 420, 360));
+            Transform panel = Container("Overlay", root.transform, L(.5f, .5f, .5f, .5f, -420, -500, 420, 500));
             Image("Border", panel, Accent, Stretch());
             Transform content = Container("Content", panel, Stretch(new Vector2(5, 5), new Vector2(-5, -5)));
             Image("Surface", content, Surface, Stretch());
-            titleText = Text("Title", content, "FLOW SAND", 76, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 60, -250, -60, -60));
-            subtitleText = Text("Subtitle", content, "Build. Crumble. Connect.", 30, Muted, TextAlignmentOptions.Top, L(0, 1, 1, 1, 70, -420, -70, -270));
-            messageText = Text("Message", content, "", 26, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 70, -540, -70, -440));
-            overlayButton = Button("Overlay Button", content, "START", L(.5f, 0, .5f, 0, -210, 62, 210, 174), Accent, Background);
+            titleText = Text("Title", content, GameTexts.GameName, 76, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 60, -280, -60, -80));
+            subtitleText = Text("Subtitle", content, GameTexts.StartSubtitle, 34, Muted, TextAlignmentOptions.Top, L(0, 1, 1, 1, 70, -530, -70, -330));
+            messageText = Text("Message", content, "", 34, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 70, -740, -70, -580));
+            overlayButton = Button("Overlay Button", content, GameTexts.Start, L(.5f, 0, .5f, 0, -210, 70, 210, 182), Accent, Background);
+            TMP_Text startButtonText = overlayButton.GetComponentInChildren<TMP_Text>();
+            startButtonText.fontSize = 40;
+            startButtonText.fontStyle = FontStyles.Bold;
             overlayButton.onClick.AddListener(() => overlay());
             panel.gameObject.AddComponent<CanvasGroup>();
             overlayReveal = panel.gameObject.AddComponent<OverlayReveal>();
@@ -140,21 +141,24 @@ namespace FlowSand.Runtime
             if (visible) overlayReveal.Show(); else overlayReveal.Hide();
         }
 
-        public void SetPauseButton(bool visible, string label = "PAUSE")
+        public void SetPauseButton(bool visible, string label = GameTexts.Pause)
         {
             pauseButton.gameObject.SetActive(visible);
             pauseButton.GetComponentInChildren<TMP_Text>().text = label;
         }
 
-        private void CreateControls(Transform parent, Action leftPress, Action leftRepeat, Action rightPress, Action rightRepeat, Action rotate, Action dropPress, Action dropRelease)
+        private void CreateControls(Transform parent, Action pause, Action leftPress, Action leftRepeat, Action rightPress, Action rightRepeat, Action rotate, Action dropPress, Action dropRelease)
         {
             // Compact Bottom Controls Layout for comfortable one-handed use
             const float secondaryWidth = 160, dropWidth = 200, gap = 14, height = 90, bottom = 20;
-            float x = -((secondaryWidth * 3) + dropWidth + (gap * 3)) / 2;
+            float x = -((secondaryWidth * 4) + dropWidth + (gap * 4)) / 2;
             Button left = IconButton("Left", parent, ControlIcon.Left, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height)); x += secondaryWidth + gap;
             Button right = IconButton("Right", parent, ControlIcon.Right, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height)); x += secondaryWidth + gap;
             Button rotateButton = IconButton("Rotate", parent, ControlIcon.Rotate, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height)); x += secondaryWidth + gap;
-            Button drop = Button("Drop", parent, "DROP", L(.5f, 0, .5f, 0, x, bottom, x + dropWidth, bottom + height), Accent, Background);
+            Button drop = Button("Drop", parent, GameTexts.Drop, L(.5f, 0, .5f, 0, x, bottom, x + dropWidth, bottom + height), Accent, Background);
+            x += dropWidth + gap;
+            pauseButton = Button("Pause", parent, GameTexts.Pause, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height), RaisedSurface, TextColor);
+            pauseButton.onClick.AddListener(() => pause());
             Hold(left, leftPress, leftRepeat, null); Hold(right, rightPress, rightRepeat, null); Hold(drop, dropPress, null, dropRelease);
             rotateButton.onClick.AddListener(() => rotate());
         }

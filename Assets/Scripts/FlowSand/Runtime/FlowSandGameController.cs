@@ -255,10 +255,10 @@ namespace FlowSand.Runtime
             gameOverEffectPlaying = false;
             view.SetOverlay(
                 true,
-                "ROUND OVER",
-                "The sand pile blocked the spawn lane.\nTap to rebuild the board.",
-                $"FINAL SCORE  {match.Score}     BEST  {match.HighScore}",
-                "RESTART");
+                GameTexts.GameOverTitle,
+                GameTexts.GameOverSubtitle,
+                GameTexts.FinalScore(match.Score, match.HighScore),
+                GameTexts.Restart);
         }
 
         private void TogglePause()
@@ -273,11 +273,11 @@ namespace FlowSand.Runtime
                 match.TogglePause();
                 view.SetOverlay(
                     true,
-                    "PAUSED",
-                    "The board is holding its shape.",
-                    "PRESS P OR TAP RESUME",
-                    "RESUME");
-                view.SetPauseButton(true, "RESUME");
+                    GameTexts.PausedTitle,
+                    GameTexts.PausedSubtitle,
+                    GameTexts.PausedInstructions,
+                    GameTexts.Resume);
+                view.SetPauseButton(true, GameTexts.Resume);
                 return;
             }
 
@@ -346,10 +346,10 @@ namespace FlowSand.Runtime
             view.SetPauseButton(false);
             view.SetOverlay(
                 true,
-                "FLOW SAND",
-                "Drop blocks. Let them crumble.\nBridge one color from edge to edge.",
-                "DRAG ON BOARD: LEFT / RIGHT TO MOVE\nUP TO ROTATE · DOWN TO DROP",
-                "START RUN");
+                GameTexts.GameName,
+                GameTexts.StartSubtitle,
+                GameTexts.StartInstructions,
+                GameTexts.Start);
         }
 
         private void InvalidateAllVisuals()
