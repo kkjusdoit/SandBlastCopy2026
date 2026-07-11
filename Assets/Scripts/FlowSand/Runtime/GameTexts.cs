@@ -11,8 +11,8 @@ namespace FlowSand.Runtime
         public const string Pause = "暂停";
         public const string Drop = "加速";
 
-        public const string StartSubtitle = "放置方块，让它们散落成流沙。\n连接同色流沙的左右两侧即可消除。";
-        public const string StartInstructions = "在棋盘上滑动虚拟摇杆：\n左右移动，上滑旋转，下滑加速";
+        public const string StartSubtitle = "同色流沙连通左右两侧即可消除\n消除数×2，连消再×2、×3";
+        public const string StartInstructions = "左右移动，上滑旋转，下滑加速";
         public const string Start = "开始游戏";
 
         public const string PausedTitle = "游戏暂停";

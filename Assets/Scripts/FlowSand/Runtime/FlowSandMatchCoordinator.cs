@@ -34,8 +34,8 @@ namespace FlowSand.Runtime
         private const float InitialDropInterval = 0.7f;
         private const float DropIntervalPerLevel = 0.045f;
         private const int MaximumSpeedLevel = 10;
-        private const float SandStepInterval = 0.0125f;
-        private const int MaximumSandStepsPerFrame = 4;
+        private const float SandStepInterval = 0.004f;
+        private const int MaximumSandStepsPerFrame = 8;
 
         private readonly List<int> pendingClearIndices = new();
         private bool[] pendingClearMask = Array.Empty<bool>();

@@ -15,6 +15,7 @@ namespace FlowSand.Runtime
         private const int GrainScale = 16;
         private const string HighScoreKey = "FlowSand.HighScore";
         private const float GameOverRowInterval = 0.05f;
+        private const float MaximumGameplayDeltaTime = 0.1f;
 
         private readonly Color32 backgroundColor = new(18, 20, 44, 255);
         private readonly Color32 borderColor = new(62, 201, 255, 255);
@@ -44,6 +45,10 @@ namespace FlowSand.Runtime
         private float gameOverEffectTimer;
         private int gameOverOverlayRows;
         private bool initialized;
+#if UNITY_WEBGL && !UNITY_EDITOR
+        private Action<GeneralCallbackResult> onWechatHide;
+        private Action<OnShowListenerResult> onWechatShow;
+#endif
 
         private async void Start()
         {
@@ -73,6 +78,7 @@ namespace FlowSand.Runtime
 
             ShowTitleScreen();
             initialized = true;
+            RegisterLifecycleCallbacks();
             InvalidateAllVisuals();
             FlushVisuals();
         }
@@ -97,7 +103,8 @@ namespace FlowSand.Runtime
                 return;
             }
 
-            GameplayUpdate update = match.UpdateGameplay(board, random, Time.unscaledDeltaTime, softDropHeld);
+            float deltaTime = Mathf.Min(Time.unscaledDeltaTime, MaximumGameplayDeltaTime);
+            GameplayUpdate update = match.UpdateGameplay(board, random, deltaTime, softDropHeld);
             ApplyGameplayUpdate(update);
         }
 
@@ -187,8 +194,66 @@ namespace FlowSand.Runtime
 
         private void OnDestroy()
         {
+            UnregisterLifecycleCallbacks();
             keyboard?.Dispose();
             boardRenderer?.Dispose();
+        }
+
+        private void OnApplicationPause(bool paused)
+        {
+            if (paused)
+            {
+                PauseForBackground();
+            }
+        }
+
+        private void OnApplicationFocus(bool focused)
+        {
+            if (!focused)
+            {
+                PauseForBackground();
+            }
+        }
+
+        private void PauseForBackground()
+        {
+            softDropHeld = false;
+            uiSoftDropHeld = false;
+            if (!initialized || match.Phase != FlowSandMatchCoordinator.GamePhase.Playing)
+            {
+                return;
+            }
+
+            match.TogglePause();
+            view.SetOverlay(
+                true,
+                GameTexts.PausedTitle,
+                GameTexts.PausedSubtitle,
+                GameTexts.PausedInstructions,
+                GameTexts.Resume);
+            view.SetPauseButton(true, GameTexts.Resume);
+        }
+
+        private void RegisterLifecycleCallbacks()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            onWechatHide = _ => PauseForBackground();
+            onWechatShow = _ =>
+            {
+                softDropHeld = false;
+                uiSoftDropHeld = false;
+            };
+            WX.OnHide(onWechatHide);
+            WX.OnShow(onWechatShow);
+#endif
+        }
+
+        private void UnregisterLifecycleCallbacks()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            if (onWechatHide != null) WX.OffHide(onWechatHide);
+            if (onWechatShow != null) WX.OffShow(onWechatShow);
+#endif
         }
 
         private void StartGame()

@@ -28,6 +28,23 @@ public class FlowSandMatchCoordinatorTests
     }
 
     [Test]
+    public void PausedMatchDoesNotAdvanceElapsedTimeOrSpeed()
+    {
+        FlowSandMatchCoordinator match = new(0);
+        FlowSandBoard board = new(10, 20, 1);
+        System.Random random = new(0);
+        board.Reset(random);
+        match.StartMatch();
+        match.UpdateGameplay(board, random, 29f, false);
+
+        match.TogglePause();
+        match.UpdateGameplay(board, random, 30f, false);
+
+        Assert.That(match.ElapsedTime, Is.EqualTo(29f).Within(0.001f));
+        Assert.That(match.GetSpeedLevel(), Is.EqualTo(1));
+    }
+
+    [Test]
     public void BridgeIsNotDetectedWhileActivePieceIsStillFalling()
     {
         FlowSandMatchCoordinator match = new(0);
