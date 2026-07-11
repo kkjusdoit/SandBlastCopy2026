@@ -12,7 +12,8 @@ internal static class FlowSandFontAssetBuilder
     private const string Characters =
         "七彩流沙方块分数下一个速度最高暂停加速放置让它们散落成连接同色的左右两侧即可消除" +
         "在棋盘上滑动虚拟摇杆移动旋转开始游戏当前状态已保持按键或点击继续本局结束堆积挡住出生区域重新再来最终连" +
-        "0123456789P：，。×";
+        "排行全服正在加载暂时无法请稍后重试还没有玩家上榜关闭我的尚未" +
+        "0123456789ABCDEF：，。×.- " ;
 
     static FlowSandFontAssetBuilder()
     {
@@ -20,10 +21,30 @@ internal static class FlowSandFontAssetBuilder
     }
 
     [MenuItem("Flow Sand/Build/Rebuild Runtime Font Asset")]
-    private static void RebuildFontAsset()
+    public static void RebuildFontAsset()
     {
         AssetDatabase.DeleteAsset(FontAssetPath);
         EnsureFontAsset();
+    }
+
+    [MenuItem("Flow Sand/Build/Validate Runtime Font Characters")]
+    public static void ValidateFontCharacters()
+    {
+        TMP_FontAsset fontAsset = AssetDatabase.LoadAssetAtPath<TMP_FontAsset>(FontAssetPath);
+        if (fontAsset == null)
+        {
+            throw new InvalidDataException($"Missing runtime font asset at {FontAssetPath}.");
+        }
+
+        foreach (char character in Characters)
+        {
+            if (!fontAsset.HasCharacter(character))
+            {
+                throw new InvalidDataException($"Runtime font asset is missing character '{character}' (U+{(int)character:X4}).");
+            }
+        }
+
+        Debug.Log($"[FlowSand Font] Validated {Characters.Length} required characters.");
     }
 
     private static void EnsureFontAsset()

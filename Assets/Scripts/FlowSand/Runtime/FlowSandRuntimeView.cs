@@ -1,5 +1,6 @@
 using System;
 using FlowSand.UI;
+using FlowSand.Online;
 using TMPro;
 using UnityEngine;
 using UnityEngine.EventSystems;
@@ -27,8 +28,12 @@ namespace FlowSand.Runtime
         private Button pauseButton;
         private Button overlayButton;
         private Button overlaySecondaryButton;
+        private Button leaderboardButton;
         private TMP_Text titleText, subtitleText, scoreText, bestText, speedText, messageText;
+        private TMP_Text leaderboardRowsText, leaderboardMeText;
         private GameObject dimmer;
+        private GameObject leaderboardDimmer;
+        private GameObject leaderboardPanel;
         private OverlayReveal overlayReveal;
         private ComboPopup comboPopup;
         private ComboPopup controlHintPopup;
@@ -45,7 +50,7 @@ namespace FlowSand.Runtime
             go.AddComponent<InputSystemUIInputModule>();
         }
 
-        public async Awaitable BuildAsync(Action pause, Action overlay, Action overlaySecondary, Action swipeLeft, Action swipeRight, Action leftPress, Action leftRepeat, Action leftRelease, Action rightPress, Action rightRepeat, Action rightRelease, Action rotate, Action dropPress, Action dropRelease, Action hardDrop)
+        public async Awaitable BuildAsync(Action pause, Action overlay, Action overlaySecondary, Action leaderboard, Action closeLeaderboard, Action swipeLeft, Action swipeRight, Action leftPress, Action leftRepeat, Action leftRelease, Action rightPress, Action rightRepeat, Action rightRelease, Action rotate, Action dropPress, Action dropRelease, Action hardDrop)
         {
             Font sourceFont = Resources.Load<Font>("Fonts/NotoSansSC-FlowSand");
             if (sourceFont == null)
@@ -90,6 +95,9 @@ namespace FlowSand.Runtime
 
             Text("Best Label", safe, GameTexts.Best, 24, Muted, TextAlignmentOptions.Center, L(1, 1, 1, 1, -320, -48, -170, 0));
             bestText = Text("Best", safe, "0", 36, Hex("FFCA40"), TextAlignmentOptions.Center, L(1, 1, 1, 1, -320, -135, -170, -45));
+            leaderboardButton = Button("Leaderboard", safe, GameTexts.Leaderboard, L(1, 1, 1, 1, -160, -135, -10, -45), RaisedSurface, TextColor);
+            leaderboardButton.GetComponentInChildren<TMP_Text>().fontSize = 30;
+            leaderboardButton.onClick.AddListener(() => leaderboard());
 
             // Maximized Game Area Layout (Centered width, maximized height)
             Transform boardSlot = Container("Board Slot", safe, L(0, 0, 1, 1, 0, 140, 0, -180));
@@ -160,6 +168,34 @@ namespace FlowSand.Runtime
             overlaySecondaryButton.gameObject.SetActive(false);
             panel.gameObject.AddComponent<CanvasGroup>();
             overlayReveal = panel.gameObject.AddComponent<OverlayReveal>();
+
+            leaderboardDimmer = Image("Leaderboard Dimmer", root.transform, Hex("050710E8"), Stretch()).gameObject;
+            leaderboardDimmer.GetComponent<Image>().raycastTarget = true;
+            leaderboardPanel = Container("Leaderboard Panel", root.transform, L(.5f, .5f, .5f, .5f, -430, -690, 430, 690)).gameObject;
+            Image("Border", leaderboardPanel.transform, Accent, Stretch());
+            Transform leaderboardContent = Container("Content", leaderboardPanel.transform, Stretch(new Vector2(5, 5), new Vector2(-5, -5)));
+            Image("Surface", leaderboardContent, Surface, Stretch());
+            TMP_Text leaderboardTitle = Text("Title", leaderboardContent, GameTexts.LeaderboardTitle, 58, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 55, -155, -55, -45));
+            leaderboardTitle.enableAutoSizing = true;
+            leaderboardTitle.fontSizeMin = 40;
+            leaderboardTitle.fontSizeMax = 58;
+            leaderboardRowsText = Text("Rows", leaderboardContent, GameTexts.LeaderboardLoading, 34, TextColor, TextAlignmentOptions.TopLeft, L(0, 0, 1, 1, 70, 270, -70, -185));
+            leaderboardRowsText.enableWordWrapping = true;
+            leaderboardRowsText.overflowMode = TextOverflowModes.Overflow;
+            leaderboardRowsText.enableAutoSizing = true;
+            leaderboardRowsText.fontSizeMin = 24;
+            leaderboardRowsText.fontSizeMax = 34;
+            leaderboardMeText = Text("Me", leaderboardContent, string.Empty, 32, Hex("FFCA40"), TextAlignmentOptions.Center, L(0, 0, 1, 0, 70, 170, -70, 260));
+            leaderboardMeText.enableWordWrapping = true;
+            leaderboardMeText.overflowMode = TextOverflowModes.Overflow;
+            leaderboardMeText.enableAutoSizing = true;
+            leaderboardMeText.fontSizeMin = 24;
+            leaderboardMeText.fontSizeMax = 32;
+            Button closeLeaderboardButton = Button("Close", leaderboardContent, GameTexts.Close, L(.5f, 0, .5f, 0, -210, 40, 210, 145), Accent, Background);
+            closeLeaderboardButton.GetComponentInChildren<TMP_Text>().fontSize = 36;
+            closeLeaderboardButton.onClick.AddListener(() => closeLeaderboard());
+            leaderboardDimmer.SetActive(false);
+            leaderboardPanel.SetActive(false);
         }
 
         public void SetHud(int score, int best, int speed)
@@ -176,6 +212,55 @@ namespace FlowSand.Runtime
         public void ShowControlHint(string message) => controlHintPopup.ShowMessage(message, 3f);
 
         public void HideControlHint() => controlHintPopup.Hide();
+
+        public void ShowLeaderboardLoading()
+        {
+            leaderboardRowsText.text = GameTexts.LeaderboardLoading;
+            leaderboardMeText.text = string.Empty;
+            leaderboardDimmer.SetActive(true);
+            leaderboardPanel.SetActive(true);
+        }
+
+        public void ShowLeaderboard(LeaderboardResponse leaderboard)
+        {
+            if (leaderboard?.players == null || leaderboard.players.Length == 0)
+            {
+                leaderboardRowsText.text = GameTexts.LeaderboardEmpty;
+            }
+            else
+            {
+                int count = Mathf.Min(10, leaderboard.players.Length);
+                leaderboardRowsText.text = FormatLeaderboardRows(leaderboard.players, count);
+            }
+            leaderboardMeText.text = leaderboard?.me == null
+                ? GameTexts.MyRank(0, 0)
+                : GameTexts.MyRank(leaderboard.me.rank, leaderboard.me.bestScore);
+        }
+
+        public void ShowLeaderboardUnavailable()
+        {
+            leaderboardRowsText.text = GameTexts.LeaderboardUnavailable;
+            leaderboardMeText.text = string.Empty;
+        }
+
+        public void HideLeaderboard()
+        {
+            leaderboardDimmer.SetActive(false);
+            leaderboardPanel.SetActive(false);
+        }
+
+        public static string FormatLeaderboardRows(OnlinePlayer[] players, int count)
+        {
+            System.Text.StringBuilder rows = new();
+            int visibleCount = Mathf.Min(count, players?.Length ?? 0);
+            for (int index = 0; index < visibleCount; index++)
+            {
+                OnlinePlayer player = players[index];
+                if (index > 0) rows.AppendLine();
+                rows.Append(GameTexts.LeaderboardEntry(player.rank, player.displayName, player.bestScore));
+            }
+            return rows.ToString();
+        }
 
         public void SetOverlay(bool visible, string title = null, string subtitle = null, string message = null, string buttonText = null, bool showSecondaryButton = false)
         {

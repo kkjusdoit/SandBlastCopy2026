@@ -1,0 +1,8 @@
+[Unit]
+Description=Back up FlowSand leaderboard database
+
+[Service]
+Type=oneshot
+User=flowsand
+Group=flowsand
+ExecStart=/srv/sandrussia/current/deploy/backup-leaderboard.sh

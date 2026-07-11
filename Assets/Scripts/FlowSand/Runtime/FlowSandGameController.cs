@@ -1,6 +1,7 @@
 using System;
 using FlowSand.Audio;
 using FlowSand.Core;
+using FlowSand.Online;
 using UnityEngine;
 #if UNITY_WEBGL && !UNITY_EDITOR
 using WeChatWASM;
@@ -49,6 +50,12 @@ namespace FlowSand.Runtime
         private int lockedButtonDirection;
         private int bottomControlUseCount;
         private bool controlHintShown;
+        private FlowSandLeaderboardService leaderboardService;
+        private string currentRunId;
+        private int runClears;
+        private int runMaxCombo;
+        private bool scoreSubmissionStarted;
+        private bool resumeAfterLeaderboard;
 #if UNITY_WEBGL && !UNITY_EDITOR
         private Action<GeneralCallbackResult> onWechatHide;
         private Action<OnShowListenerResult> onWechatShow;
@@ -61,6 +68,9 @@ namespace FlowSand.Runtime
             random = new System.Random();
             board = new FlowSandBoard(CoarseCols, CoarseRows, GrainScale);
             match = new FlowSandMatchCoordinator(PlayerPrefs.GetInt(HighScoreKey, 0));
+            FlowSandApiClient apiClient = new(FlowSandEnvironment.ApiBaseUrl);
+            FlowSandAuthService authService = new(apiClient);
+            leaderboardService = new FlowSandLeaderboardService(apiClient, authService);
 
             FlowSandRuntimeView.EnsureEventSystem();
             ConfigureCamera();
@@ -69,6 +79,8 @@ namespace FlowSand.Runtime
                 TogglePause,
                 OnOverlayButtonPressed,
                 RestartFromPause,
+                ShowLeaderboard,
+                HideLeaderboard,
                 () => TryMove(-1),
                 () => TryMove(1),
                 () => BeginButtonMove(-1),
@@ -87,6 +99,7 @@ namespace FlowSand.Runtime
 
             ShowTitleScreen();
             initialized = true;
+            InitializeOnlineServices();
             RegisterLifecycleCallbacks();
             InvalidateAllVisuals();
             FlushVisuals();
@@ -132,6 +145,8 @@ namespace FlowSand.Runtime
 
             if (update.Cleared)
             {
+                runClears += 1;
+                runMaxCombo = Mathf.Max(runMaxCombo, match.Combo);
                 sfxPlayer.PlayClear();
                 VibrateOnClear();
                 if (match.Combo >= 2)
@@ -278,6 +293,10 @@ namespace FlowSand.Runtime
             gameOverEffectPlaying = false;
             gameOverEffectTimer = 0f;
             gameOverOverlayRows = 0;
+            currentRunId = $"run-{Guid.NewGuid():N}";
+            runClears = 0;
+            runMaxCombo = 0;
+            scoreSubmissionStarted = false;
             match.StartMatch();
 
             view.HideCombo();
@@ -312,6 +331,7 @@ namespace FlowSand.Runtime
             gameOverEffectPlaying = true;
             gameOverEffectTimer = 0f;
             gameOverOverlayRows = 0;
+            SubmitFinalScore();
             sfxPlayer.PlayGameOver();
         }
 
@@ -561,6 +581,71 @@ namespace FlowSand.Runtime
         {
             PlayerPrefs.SetInt(HighScoreKey, highScore);
             PlayerPrefs.Save();
+        }
+
+        private async void InitializeOnlineServices()
+        {
+            try
+            {
+                await leaderboardService.InitializeAsync();
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"Leaderboard initialization deferred: {exception.Message}");
+            }
+        }
+
+        private async void SubmitFinalScore()
+        {
+            if (scoreSubmissionStarted || string.IsNullOrEmpty(currentRunId))
+            {
+                return;
+            }
+
+            scoreSubmissionStarted = true;
+            await leaderboardService.SubmitAsync(new ScoreSubmission
+            {
+                runId = currentRunId,
+                score = match.Score,
+                durationSeconds = Mathf.Max(0, Mathf.RoundToInt(match.ElapsedTime)),
+                clears = runClears,
+                maxCombo = runMaxCombo,
+            });
+        }
+
+        private async void ShowLeaderboard()
+        {
+            resumeAfterLeaderboard = match.Phase == FlowSandMatchCoordinator.GamePhase.Playing;
+            if (resumeAfterLeaderboard)
+            {
+                softDropHeld = false;
+                uiSoftDropHeld = false;
+                lockedButtonDirection = 0;
+                match.TogglePause();
+                view.SetPauseButton(true, GameTexts.Resume);
+            }
+            view.ShowLeaderboardLoading();
+            try
+            {
+                LeaderboardResponse leaderboard = await leaderboardService.GetLeaderboardAsync(10);
+                view.ShowLeaderboard(leaderboard);
+            }
+            catch (Exception exception)
+            {
+                Debug.LogWarning($"Leaderboard loading failed: {exception.Message}");
+                view.ShowLeaderboardUnavailable();
+            }
+        }
+
+        private void HideLeaderboard()
+        {
+            view.HideLeaderboard();
+            if (resumeAfterLeaderboard && match.Phase == FlowSandMatchCoordinator.GamePhase.Paused)
+            {
+                match.TogglePause();
+                view.SetPauseButton(true, GameTexts.Pause);
+            }
+            resumeAfterLeaderboard = false;
         }
 
         private static void VibrateOnClear()
