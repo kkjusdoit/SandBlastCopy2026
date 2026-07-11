@@ -95,7 +95,8 @@ namespace FlowSand.Runtime
             swipeInput.OnSwipeLeft = leftPress;
             swipeInput.OnSwipeRight = rightPress;
             swipeInput.OnSwipeUp = rotate;
-            swipeInput.OnSwipeDown = hardDrop;
+            swipeInput.OnSwipeDownPress = dropPress;
+            swipeInput.OnSwipeDownRelease = dropRelease;
 
             TMP_Text comboText = Text("Combo", boardSlot, "", 54, Accent, TextAlignmentOptions.Center, L(.5f, 1, .5f, 1, -260, -400, 260, -310));
             comboText.fontStyle = FontStyles.Bold;

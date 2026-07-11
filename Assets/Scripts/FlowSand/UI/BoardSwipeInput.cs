@@ -22,7 +22,8 @@ namespace FlowSand.UI
         public Action OnSwipeLeft { get; set; }
         public Action OnSwipeRight { get; set; }
         public Action OnSwipeUp { get; set; }
-        public Action OnSwipeDown { get; set; }
+        public Action OnSwipeDownPress { get; set; }
+        public Action OnSwipeDownRelease { get; set; }
 
         private void Awake()
         {
@@ -65,6 +66,7 @@ namespace FlowSand.UI
         {
             if (activePointerId == int.MinValue)
             {
+                if (currentDirection == 4) OnSwipeDownRelease?.Invoke();
                 currentDirection = 0;
                 return;
             }
@@ -72,6 +74,7 @@ namespace FlowSand.UI
             Vector2 offset = knob.anchoredPosition;
             if (offset.magnitude < DeadZoneDistance())
             {
+                if (currentDirection == 4) OnSwipeDownRelease?.Invoke();
                 currentDirection = 0;
                 return;
             }
@@ -96,7 +99,7 @@ namespace FlowSand.UI
                 }
                 else
                 {
-                    // DOWN (Hard Drop) requires dragging the knob downwards and a clear vertical bias
+                    // DOWN (Soft Drop) requires dragging the knob downwards and a clear vertical bias
                     if (Mathf.Abs(offset.y) >= verticalThreshold && Mathf.Abs(offset.y) > Mathf.Abs(offset.x) * 1.2f)
                     {
                         targetDirection = 4;
@@ -106,20 +109,27 @@ namespace FlowSand.UI
 
             if (targetDirection == 0)
             {
+                if (currentDirection == 4) OnSwipeDownRelease?.Invoke();
                 currentDirection = 0;
                 return;
             }
 
             if (targetDirection != currentDirection)
             {
-                TriggerAction(targetDirection);
+                // Exit old direction
+                if (currentDirection == 4) OnSwipeDownRelease?.Invoke();
+
+                // Enter new direction
+                if (targetDirection == 4) OnSwipeDownPress?.Invoke();
+                else TriggerAction(targetDirection);
+
                 currentDirection = targetDirection;
                 nextTriggerTime = Time.time + 0.25f; // Initial DAS delay (250ms)
             }
             else
             {
-                // Auto-repeat Left (1), Right (2) and Down (4)
-                if (currentDirection != 3) // Skip Up (Rotate) auto-repeat to prevent accidental multiple rotations
+                // Auto-repeat Left (1) and Right (2)
+                if (currentDirection == 1 || currentDirection == 2)
                 {
                     if (Time.time >= nextTriggerTime)
                     {
@@ -137,7 +147,6 @@ namespace FlowSand.UI
                 case 1: OnSwipeLeft?.Invoke(); break;
                 case 2: OnSwipeRight?.Invoke(); break;
                 case 3: OnSwipeUp?.Invoke(); break;
-                case 4: OnSwipeDown?.Invoke(); break;
             }
         }
 
@@ -154,6 +163,7 @@ namespace FlowSand.UI
                 return;
             }
 
+            if (currentDirection == 4) OnSwipeDownRelease?.Invoke();
             activePointerId = int.MinValue;
             currentDirection = 0;
             indicator.gameObject.SetActive(false);
@@ -161,6 +171,7 @@ namespace FlowSand.UI
 
         private void OnDisable()
         {
+            if (currentDirection == 4) OnSwipeDownRelease?.Invoke();
             activePointerId = int.MinValue;
             currentDirection = 0;
             if (indicator != null) indicator.gameObject.SetActive(false);
