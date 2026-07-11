@@ -37,7 +37,7 @@ namespace FlowSand.Runtime
             go.AddComponent<InputSystemUIInputModule>();
         }
 
-        public async Awaitable BuildAsync(Action pause, Action overlay, Action leftPress, Action leftRepeat, Action rightPress, Action rightRepeat, Action rotate, Action dropPress, Action dropRelease)
+        public async Awaitable BuildAsync(Action pause, Action overlay, Action leftPress, Action leftRepeat, Action rightPress, Action rightRepeat, Action rotate, Action dropPress, Action dropRelease, Action hardDrop)
         {
             fontAsset = Resources.Load<TMP_FontAsset>("Fonts & Materials/LiberationSans SDF");
             if (fontAsset == null)
@@ -95,11 +95,7 @@ namespace FlowSand.Runtime
             swipeInput.OnSwipeLeft = leftPress;
             swipeInput.OnSwipeRight = rightPress;
             swipeInput.OnSwipeUp = rotate;
-            swipeInput.OnSwipeDown = () =>
-            {
-                dropPress();
-                dropRelease();
-            };
+            swipeInput.OnSwipeDown = hardDrop;
 
             TMP_Text comboText = Text("Combo", boardSlot, "", 54, Accent, TextAlignmentOptions.Center, L(.5f, 1, .5f, 1, -260, -150, 260, -60));
             comboText.fontStyle = FontStyles.Bold;

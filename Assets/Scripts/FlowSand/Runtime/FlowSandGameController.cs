@@ -62,7 +62,8 @@ namespace FlowSand.Runtime
                 () => TryMove(1),
                 TryRotate,
                 BeginSoftDrop,
-                () => uiSoftDropHeld = false);
+                () => uiSoftDropHeld = false,
+                TryHardDrop);
 
             sfxPlayer = gameObject.AddComponent<FlowSandSfxPlayer>();
             boardRenderer = new FlowSandBoardRenderer(board, view.BoardImage, view.NextImage, palette, backgroundColor, borderColor);
@@ -94,6 +95,11 @@ namespace FlowSand.Runtime
             }
 
             GameplayUpdate update = match.UpdateGameplay(board, random, Time.unscaledDeltaTime, softDropHeld);
+            ApplyGameplayUpdate(update);
+        }
+
+        private void ApplyGameplayUpdate(GameplayUpdate update)
+        {
             boardVisualDirty |= update.BoardChanged;
             hudVisualDirty |= update.HudChanged;
 
@@ -158,9 +164,14 @@ namespace FlowSand.Runtime
                 TryMove(1);
             }
 
-            if (keyboard.GetKeyDown(KeyCode.UpArrow) || keyboard.GetKeyDown(KeyCode.W) || keyboard.GetKeyDown(KeyCode.Space))
+            if (keyboard.GetKeyDown(KeyCode.UpArrow) || keyboard.GetKeyDown(KeyCode.W))
             {
                 TryRotate();
+            }
+
+            if (keyboard.GetKeyDown(KeyCode.Space))
+            {
+                TryHardDrop();
             }
 
             bool keyboardSoftDropHeld = keyboard.GetKey(KeyCode.DownArrow) || keyboard.GetKey(KeyCode.S);
@@ -294,6 +305,17 @@ namespace FlowSand.Runtime
                 sfxPlayer.PlayRotate();
                 boardVisualDirty = true;
             }
+        }
+
+        private void TryHardDrop()
+        {
+            if (!match.CanControlPiece)
+            {
+                return;
+            }
+
+            GameplayUpdate update = match.HardDrop(board);
+            ApplyGameplayUpdate(update);
         }
 
         private void BeginSoftDrop()

@@ -126,6 +126,34 @@ namespace FlowSand.Runtime
             return new GameplayUpdate((int)events);
         }
 
+        public GameplayUpdate HardDrop(FlowSandBoard board)
+        {
+            if (Phase != GamePhase.Playing || !board.HasActivePiece || HasPendingClear)
+            {
+                return default;
+            }
+
+            GameplayEvent events = GameplayEvent.None;
+            while (board.TryStepDown())
+            {
+                events |= GameplayEvent.BoardChanged;
+            }
+
+            board.LockCurrentPiece();
+            waitingForSandToSettle = true;
+            bridgeCheckPending = false;
+            Combo = 0;
+            pieceFallTimer = 0f;
+            events |= GameplayEvent.BoardChanged | GameplayEvent.PieceLocked;
+
+            if (!board.HasActivePiece && !HasPendingClear && !waitingForSandToSettle)
+            {
+                events |= GameplayEvent.NeedsSpawn;
+            }
+
+            return new GameplayUpdate((int)events);
+        }
+
         public float GetCurrentDropInterval()
         {
             return InitialDropInterval - ((GetSpeedLevel() - 1) * DropIntervalPerLevel);
@@ -147,7 +175,7 @@ namespace FlowSand.Runtime
             float stepInterval = GetCurrentDropInterval();
             if (softDropHeld)
             {
-                stepInterval *= 0.16f;
+                stepInterval *= 0.05f;
             }
 
             while (pieceFallTimer >= stepInterval)
