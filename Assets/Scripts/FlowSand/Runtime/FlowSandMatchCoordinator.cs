@@ -156,7 +156,8 @@ namespace FlowSand.Runtime
 
         public float GetCurrentDropInterval()
         {
-            return InitialDropInterval - ((GetSpeedLevel() - 1) * DropIntervalPerLevel);
+            float interval = InitialDropInterval - ((GetSpeedLevel() - 1) * DropIntervalPerLevel);
+            return Mathf.Max(0.3f, interval); // 无论等级多高，正常重力下落的最快速度绝不会快于 0.3 秒/格
         }
 
         public int GetSpeedLevel()
