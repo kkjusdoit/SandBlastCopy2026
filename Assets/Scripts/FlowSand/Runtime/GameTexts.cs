@@ -24,6 +24,6 @@ namespace FlowSand.Runtime
         public const string GameOverSubtitle = "流沙堆积已挡住出生区域\n点击重新开始";
         public const string Restart = "再来一局";
 
-        public static string FinalScore(int score, int best) => $"最终分数  {score}     最高  {best}";
+        public static string FinalScore(int score, int best) => $"最终分数：{score}\n最高分：{best}";
     }
 }

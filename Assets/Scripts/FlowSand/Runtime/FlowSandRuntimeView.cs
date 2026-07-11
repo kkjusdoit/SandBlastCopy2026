@@ -11,6 +11,7 @@ namespace FlowSand.Runtime
     public sealed class FlowSandRuntimeView
     {
         private const float BoardAspectRatio = 0.5f;
+        private const string RuntimeFontShaderName = "TextMeshPro/Mobile/Distance Field";
 
         private static readonly Color Background = Hex("070914");
         private static readonly Color Surface = Hex("0D1124");
@@ -44,6 +45,13 @@ namespace FlowSand.Runtime
             {
                 throw new InvalidOperationException("Missing Chinese font at Resources/Fonts/NotoSansSC-FlowSand.");
             }
+
+            if (Shader.Find(RuntimeFontShaderName) == null)
+            {
+                throw new InvalidOperationException(
+                    $"Missing required shader '{RuntimeFontShaderName}'. Keep it in Graphics Settings > Always Included Shaders.");
+            }
+
             fontAsset = TMP_FontAsset.CreateFontAsset(sourceFont);
             GameObject root = new("FlowSand UI", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             root.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
@@ -111,6 +119,10 @@ namespace FlowSand.Runtime
             titleText = Text("Title", content, GameTexts.GameName, 76, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 60, -280, -60, -80));
             subtitleText = Text("Subtitle", content, GameTexts.StartSubtitle, 34, Muted, TextAlignmentOptions.Top, L(0, 1, 1, 1, 70, -530, -70, -330));
             messageText = Text("Message", content, "", 34, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 70, -740, -70, -580));
+            messageText.enableWordWrapping = true;
+            messageText.enableAutoSizing = true;
+            messageText.fontSizeMin = 28;
+            messageText.fontSizeMax = 42;
             overlayButton = Button("Overlay Button", content, GameTexts.Start, L(.5f, 0, .5f, 0, -210, 70, 210, 182), Accent, Background);
             TMP_Text startButtonText = overlayButton.GetComponentInChildren<TMP_Text>();
             startButtonText.fontSize = 40;

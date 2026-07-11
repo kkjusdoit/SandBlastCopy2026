@@ -12,6 +12,8 @@ public static class FlowSandWeChatBuild
     private const string OutputOverrideVariable = "FLOW_SAND_WX_OUTPUT";
     private const string SplitSourceVariable = "FLOW_SAND_WASM_SPLIT_SOURCE";
     private const string HotFunctionListName = "FlowSand-Wasm-HotFunctions.txt";
+    private const string DefaultWeChatExportFolder = "SandFlow";
+    private const string WasmCollectionSuffix = "-WasmCollection";
     private static readonly Regex SymbolEntryRegex = new Regex(
         "\\\"\\d+\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"",
         RegexOptions.Compiled);
@@ -145,8 +147,26 @@ public static class FlowSandWeChatBuild
             return Path.GetFullPath(overridePath);
         }
 
-        string root = Path.GetFullPath(configuredDestination);
-        return collectionBuild ? root.TrimEnd(Path.DirectorySeparatorChar) + "-WasmCollection" : root;
+        string root;
+        if (string.IsNullOrWhiteSpace(configuredDestination))
+        {
+            root = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                "WeChatProjects",
+                DefaultWeChatExportFolder);
+        }
+        else
+        {
+            root = Path.GetFullPath(configuredDestination);
+        }
+
+        root = root.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        if (root.EndsWith(WasmCollectionSuffix, StringComparison.OrdinalIgnoreCase))
+        {
+            root = root.Substring(0, root.Length - WasmCollectionSuffix.Length);
+        }
+
+        return collectionBuild ? root + WasmCollectionSuffix : root;
     }
 
     private static void ValidateExport(string outputRoot, bool collectionBuild)
