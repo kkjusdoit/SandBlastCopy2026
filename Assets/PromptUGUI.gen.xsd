@@ -477,14 +477,6 @@
       <xs:attribute name="on" type="xs:string" />
     </xs:complexType>
   </xs:element>
-  <xs:element name="Card">
-    <xs:complexType>
-      <xs:choice maxOccurs="unbounded" minOccurs="0">
-        <xs:group ref="controlGroup" />
-      </xs:choice>
-      <xs:attributeGroup ref="commonAttrs" />
-    </xs:complexType>
-  </xs:element>
   <xs:group name="controlGroup">
     <xs:choice>
       <xs:element ref="Frame" />
@@ -511,7 +503,6 @@
       <xs:element ref="TabBar" />
       <xs:element ref="Toggle" />
       <xs:element ref="Trigger" />
-      <xs:element ref="Card" />
     </xs:choice>
   </xs:group>
 </xs:schema>
