@@ -58,8 +58,107 @@ public class FlowSandBoardTests
         bool moved = board.StepSand(new System.Random(1));
 
         Assert.That(moved, Is.True);
-        Assert.That(board.GetSand(0, 1), Is.EqualTo(CellColor.Gold));
+        Assert.That(
+            board.GetSand(0, 0) == CellColor.Gold || board.GetSand(0, 1) == CellColor.Gold,
+            Is.True);
         Assert.That(board.GetSand(0, 2), Is.EqualTo(CellColor.Empty));
+    }
+
+    [Test]
+    public void SandStepDoesNotShuffleEveryRow()
+    {
+        FlowSandBoard board = new(10, 20, 1);
+        CountingRandom random = new();
+        Set(board, 5, 19, CellColor.Gold);
+
+        board.StepSand(random);
+
+        Assert.That(random.NextCalls, Is.EqualTo(0));
+    }
+
+    [Test]
+    public void FreeFallingRowMovesContinuouslyWithoutHorizontalGaps()
+    {
+        FlowSandBoard board = new(16, 12, 1);
+        for (int x = 0; x < board.SandCols; x++)
+        {
+            Set(board, x, 10, CellColor.Sky);
+        }
+
+        board.StepSand(new System.Random(1));
+
+        int waitingGrains = CountOccupiedInRow(board, 10);
+        int fallenGrains = CountOccupiedInRow(board, 9);
+        Assert.That(waitingGrains, Is.EqualTo(0));
+        Assert.That(waitingGrains + fallenGrains, Is.EqualTo(board.SandCols));
+    }
+
+    [Test]
+    public void LockSnapsPieceDownToFineSandContactBeforeSandifying()
+    {
+        FlowSandBoard board = new(4, 6, 4);
+        Set(board, 0, 9, CellColor.Gold);
+        SetCurrentPiece(board, new ActivePiece
+        {
+            Kind = TetrominoKind.I,
+            Color = CellColor.Coral,
+            Rotation = 0,
+            Col = 0,
+            Row = 2,
+        });
+
+        board.LockCurrentPiece();
+
+        Assert.That(board.GetSand(0, 10), Is.EqualTo(CellColor.Coral));
+        Assert.That(board.GetSand(0, 15), Is.EqualTo(CellColor.Empty));
+    }
+
+    [Test]
+    public void SurfaceGrainSlidesOnlyIntoAnAdjacentDiagonalCell()
+    {
+        FlowSandBoard board = new(5, 3, 1);
+        for (int x = 0; x < board.SandCols; x++)
+        {
+            Set(board, x, 0, CellColor.Gold);
+        }
+
+        Set(board, 2, 1, CellColor.Gold);
+        Set(board, 2, 2, CellColor.Sky);
+
+        bool moved = board.StepSand(new System.Random(1));
+
+        Assert.That(moved, Is.True);
+        Assert.That(board.GetSand(2, 2), Is.EqualTo(CellColor.Empty));
+        Assert.That(
+            board.GetSand(1, 1) == CellColor.Sky || board.GetSand(3, 1) == CellColor.Sky,
+            Is.True);
+    }
+
+    [Test]
+    public void PieceCanSpawnWhenOnlyTheRowBelowTheCeilingIsOccupied()
+    {
+        FlowSandBoard board = CreateBoardWithNextPiece(TetrominoKind.O);
+        Set(board, 4, board.SandRows - 2, CellColor.Coral);
+
+        Assert.That(board.SpawnNextPiece(new System.Random(1)), Is.True);
+    }
+
+    [Test]
+    public void PieceCannotSpawnWhenTheCeilingEntryIsOccupied()
+    {
+        FlowSandBoard board = CreateBoardWithNextPiece(TetrominoKind.O);
+        Set(board, 4, board.SandRows - 1, CellColor.Coral);
+
+        Assert.That(board.SpawnNextPiece(new System.Random(1)), Is.False);
+    }
+
+    private static FlowSandBoard CreateBoardWithNextPiece(TetrominoKind kind)
+    {
+        FlowSandBoard board = new(10, 20, 1);
+        board.Reset(new System.Random(0));
+        var field = typeof(FlowSandBoard).GetField("<NextPiece>k__BackingField", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        field.SetValue(board, new ActivePiece { Kind = kind, Color = CellColor.Coral });
+        return board;
     }
 
     private static void Set(FlowSandBoard board, int x, int y, CellColor color)
@@ -67,5 +166,36 @@ public class FlowSandBoardTests
         var field = typeof(FlowSandBoard).GetField("sandGrid", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
         CellColor[] grid = (CellColor[])field.GetValue(board);
         grid[board.ToIndex(x, y)] = color;
+    }
+
+    private static int CountOccupiedInRow(FlowSandBoard board, int y)
+    {
+        int occupied = 0;
+        for (int x = 0; x < board.SandCols; x++)
+        {
+            if (board.GetSand(x, y) != CellColor.Empty)
+            {
+                occupied += 1;
+            }
+        }
+
+        return occupied;
+    }
+
+    private static void SetCurrentPiece(FlowSandBoard board, ActivePiece piece)
+    {
+        var field = typeof(FlowSandBoard).GetField("<CurrentPiece>k__BackingField", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+        field.SetValue(board, (ActivePiece?)piece);
+    }
+
+    private sealed class CountingRandom : System.Random
+    {
+        public int NextCalls { get; private set; }
+
+        public override int Next(int maxValue)
+        {
+            NextCalls += 1;
+            return base.Next(maxValue);
+        }
     }
 }

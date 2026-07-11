@@ -6,14 +6,18 @@ namespace FlowSand.Core
 {
     public sealed class FlowSandBoard
     {
+        private static readonly int[] RotationKicks = { 0, -1, 1, -2, 2 };
+
         private readonly CellColor[] sandGrid;
-        private readonly int[] shuffleBuffer;
-        private readonly Queue<TetrominoKind> pieceBag = new();
-        private readonly HashSet<int> bridgeVisited = new();
-        private readonly HashSet<int> bridgeClearSet = new();
-        private readonly List<int> bridgeResult = new();
-        private readonly List<int> bridgeComponent = new();
-        private readonly Stack<int> bridgeStack = new();
+        private readonly TetrominoKind[] pieceBag = new TetrominoKind[7];
+        private readonly int[] bridgeVisitStamps;
+        private readonly int[] bridgeComponent;
+        private readonly int[] bridgeStack;
+        private readonly List<int> bridgeResult;
+
+        private int pieceBagIndex;
+        private int bridgeVisitStamp;
+        private int sandStepCount;
 
         public FlowSandBoard(int coarseCols, int coarseRows, int grainScale)
         {
@@ -23,8 +27,13 @@ namespace FlowSand.Core
             SandCols = coarseCols * grainScale;
             SandRows = coarseRows * grainScale;
 
-            sandGrid = new CellColor[SandCols * SandRows];
-            shuffleBuffer = new int[SandCols];
+            int cellCount = SandCols * SandRows;
+            sandGrid = new CellColor[cellCount];
+            bridgeVisitStamps = new int[cellCount];
+            bridgeComponent = new int[cellCount];
+            bridgeStack = new int[cellCount];
+            bridgeResult = new List<int>(cellCount);
+            pieceBagIndex = pieceBag.Length;
         }
 
         public int CoarseCols { get; }
@@ -32,8 +41,10 @@ namespace FlowSand.Core
         public int GrainScale { get; }
         public int SandCols { get; }
         public int SandRows { get; }
+        public int CellCount => sandGrid.Length;
         public ActivePiece? CurrentPiece { get; private set; }
         public ActivePiece NextPiece { get; private set; }
+        public int BridgeScanCount { get; private set; }
 
         public CellColor GetSand(int x, int y)
         {
@@ -50,7 +61,8 @@ namespace FlowSand.Core
         public void Reset(System.Random random)
         {
             Array.Fill(sandGrid, CellColor.Empty);
-            pieceBag.Clear();
+            pieceBagIndex = pieceBag.Length;
+            sandStepCount = 0;
             CurrentPiece = null;
             NextPiece = CreateQueuedPiece(random);
         }
@@ -61,7 +73,9 @@ namespace FlowSand.Core
             BoardBounds bounds = TetrominoLibrary.GetBounds(next.Kind, next.Rotation);
 
             next.Col = Mathf.Clamp((CoarseCols - bounds.Width) / 2 - bounds.MinX, -bounds.MinX, CoarseCols - bounds.MaxX - 1);
-            next.Row = CoarseRows - bounds.MaxY - 1;
+            // Spawn with the lowest occupied row at the visible ceiling. The rest of
+            // the piece enters from above instead of reserving empty rows in the board.
+            next.Row = CoarseRows - bounds.MinY - 1;
 
             NextPiece = CreateQueuedPiece(random);
             if (Collides(next.Col, next.Row, next.Kind, next.Rotation))
@@ -102,11 +116,9 @@ namespace FlowSand.Core
 
             ActivePiece piece = CurrentPiece.Value;
             int targetRotation = (piece.Rotation + 1) & 3;
-            int[] kicks = { 0, -1, 1, -2, 2 };
-
-            for (int i = 0; i < kicks.Length; i++)
+            for (int i = 0; i < RotationKicks.Length; i++)
             {
-                int candidateCol = piece.Col + kicks[i];
+                int candidateCol = piece.Col + RotationKicks[i];
                 if (Collides(candidateCol, piece.Row, piece.Kind, targetRotation))
                 {
                     continue;
@@ -149,6 +161,7 @@ namespace FlowSand.Core
 
             ActivePiece piece = CurrentPiece.Value;
             Vector2Int[] cells = TetrominoLibrary.GetCells(piece.Kind, piece.Rotation);
+            int fineDropDistance = GetFineLockDropDistance(piece, cells);
 
             for (int i = 0; i < cells.Length; i++)
             {
@@ -156,7 +169,7 @@ namespace FlowSand.Core
                 int coarseX = piece.Col + cell.x;
                 int coarseY = piece.Row + cell.y;
                 int sandStartX = coarseX * GrainScale;
-                int sandStartY = coarseY * GrainScale;
+                int sandStartY = (coarseY * GrainScale) - fineDropDistance;
 
                 for (int dx = 0; dx < GrainScale; dx++)
                 {
@@ -185,83 +198,187 @@ namespace FlowSand.Core
         public bool StepSand(System.Random random)
         {
             bool moved = false;
-            for (int i = 0; i < SandCols; i++)
-            {
-                shuffleBuffer[i] = i;
-            }
+            sandStepCount += 1;
 
             for (int y = 1; y < SandRows; y++)
             {
-                Shuffle(random, shuffleBuffer);
-                for (int i = 0; i < SandCols; i++)
+                int rowOffset = y * SandCols;
+                int belowRowOffset = rowOffset - SandCols;
+                int startX = GetRowStart(y);
+                int stride = GetCoprimeStride(y);
+                int x = startX;
+
+                for (int visited = 0; visited < SandCols; visited++)
                 {
-                    int x = shuffleBuffer[i];
-                    CellColor value = sandGrid[ToIndex(x, y)];
+                    int sourceIndex = rowOffset + x;
+                    CellColor value = sandGrid[sourceIndex];
                     if (value == CellColor.Empty)
                     {
+                        x += stride;
+                        if (x >= SandCols)
+                        {
+                            x -= SandCols;
+                        }
+
                         continue;
                     }
 
-                    int belowIndex = ToIndex(x, y - 1);
+                    int belowIndex = belowRowOffset + x;
                     if (sandGrid[belowIndex] == CellColor.Empty)
                     {
                         sandGrid[belowIndex] = value;
-                        sandGrid[ToIndex(x, y)] = CellColor.Empty;
+                        sandGrid[sourceIndex] = CellColor.Empty;
                         moved = true;
-                        continue;
-                    }
-
-                    bool canLeft = x > 0 && sandGrid[ToIndex(x - 1, y - 1)] == CellColor.Empty;
-                    bool canRight = x < SandCols - 1 && sandGrid[ToIndex(x + 1, y - 1)] == CellColor.Empty;
-                    if (!canLeft && !canRight)
-                    {
-                        continue;
-                    }
-
-                    int targetX;
-                    if (canLeft && canRight)
-                    {
-                        targetX = random.NextDouble() < 0.5d ? x - 1 : x + 1;
                     }
                     else
                     {
-                        targetX = canLeft ? x - 1 : x + 1;
+                        bool canLeft = x > 0 && sandGrid[belowIndex - 1] == CellColor.Empty;
+                        bool canRight = x < SandCols - 1 && sandGrid[belowIndex + 1] == CellColor.Empty;
+                        if (canLeft || canRight)
+                        {
+                            int targetX;
+                            if (canLeft && canRight)
+                            {
+                                targetX = random.Next(2) == 0 ? x - 1 : x + 1;
+                            }
+                            else
+                            {
+                                targetX = canLeft ? x - 1 : x + 1;
+                            }
+
+                            sandGrid[belowRowOffset + targetX] = value;
+                            sandGrid[sourceIndex] = CellColor.Empty;
+                            moved = true;
+                        }
                     }
 
-                    sandGrid[ToIndex(targetX, y - 1)] = value;
-                    sandGrid[ToIndex(x, y)] = CellColor.Empty;
-                    moved = true;
+                    x += stride;
+                    if (x >= SandCols)
+                    {
+                        x -= SandCols;
+                    }
                 }
             }
 
             return moved;
         }
 
+        private int GetRowStart(int y)
+        {
+            uint hash = ((uint)y * 19349663u) ^ ((uint)sandStepCount * 83492791u);
+            hash ^= hash >> 13;
+            return (int)(hash % (uint)SandCols);
+        }
+
+        private int GetCoprimeStride(int y)
+        {
+            if (SandCols <= 2)
+            {
+                return 1;
+            }
+
+            uint hash = ((uint)y * 73856093u) ^ ((uint)sandStepCount * 2654435761u);
+            int stride = 1 + (int)(hash % (uint)(SandCols - 1));
+            while (GreatestCommonDivisor(stride, SandCols) != 1)
+            {
+                stride += 1;
+                if (stride >= SandCols)
+                {
+                    stride = 1;
+                }
+            }
+
+            return stride;
+        }
+
+        private static int GreatestCommonDivisor(int a, int b)
+        {
+            while (b != 0)
+            {
+                int remainder = a % b;
+                a = b;
+                b = remainder;
+            }
+
+            return a;
+        }
+
+        private int GetFineLockDropDistance(ActivePiece piece, Vector2Int[] cells)
+        {
+            int fineDropDistance = 0;
+            for (int candidate = 1; candidate < GrainScale; candidate++)
+            {
+                if (CollidesAtFineDrop(piece, cells, candidate))
+                {
+                    break;
+                }
+
+                fineDropDistance = candidate;
+            }
+
+            return fineDropDistance;
+        }
+
+        private bool CollidesAtFineDrop(ActivePiece piece, Vector2Int[] cells, int fineDropDistance)
+        {
+            for (int i = 0; i < cells.Length; i++)
+            {
+                Vector2Int cell = cells[i];
+                int sandStartX = (piece.Col + cell.x) * GrainScale;
+                int sandStartY = ((piece.Row + cell.y) * GrainScale) - fineDropDistance;
+
+                for (int dx = 0; dx < GrainScale; dx++)
+                {
+                    for (int dy = 0; dy < GrainScale; dy++)
+                    {
+                        int sandY = sandStartY + dy;
+                        if (sandY < 0)
+                        {
+                            return true;
+                        }
+
+                        if (sandY >= SandRows)
+                        {
+                            continue;
+                        }
+
+                        int sandX = sandStartX + dx;
+                        if (sandGrid[ToIndex(sandX, sandY)] != CellColor.Empty)
+                        {
+                            return true;
+                        }
+                    }
+                }
+            }
+
+            return false;
+        }
+
         public IReadOnlyList<int> FindBridgeClearCells()
         {
+            BridgeScanCount += 1;
             bridgeResult.Clear();
-            bridgeClearSet.Clear();
-            bridgeVisited.Clear();
+            int visitStamp = NextBridgeVisitStamp();
 
             for (int y = 0; y < SandRows; y++)
             {
                 int leftIndex = ToIndex(0, y);
                 CellColor color = sandGrid[leftIndex];
-                if (color == CellColor.Empty || bridgeVisited.Contains(leftIndex))
+                if (color == CellColor.Empty || bridgeVisitStamps[leftIndex] == visitStamp)
                 {
                     continue;
                 }
 
-                bridgeComponent.Clear();
+                int componentCount = 0;
+                int stackCount = 0;
                 bool touchesRight = false;
-                bridgeStack.Clear();
-                bridgeStack.Push(leftIndex);
-                bridgeVisited.Add(leftIndex);
+                bridgeStack[stackCount++] = leftIndex;
+                bridgeVisitStamps[leftIndex] = visitStamp;
 
-                while (bridgeStack.Count > 0)
+                while (stackCount > 0)
                 {
-                    int index = bridgeStack.Pop();
-                    bridgeComponent.Add(index);
+                    int index = bridgeStack[--stackCount];
+                    bridgeComponent[componentCount++] = index;
                     int cx = index % SandCols;
                     int cy = index / SandCols;
 
@@ -270,10 +387,25 @@ namespace FlowSand.Core
                         touchesRight = true;
                     }
 
-                    TryVisitNeighbor(cx - 1, cy, color, bridgeVisited, bridgeStack);
-                    TryVisitNeighbor(cx + 1, cy, color, bridgeVisited, bridgeStack);
-                    TryVisitNeighbor(cx, cy - 1, color, bridgeVisited, bridgeStack);
-                    TryVisitNeighbor(cx, cy + 1, color, bridgeVisited, bridgeStack);
+                    if (cx > 0)
+                    {
+                        TryVisitNeighbor(index - 1, color, visitStamp, ref stackCount);
+                    }
+
+                    if (cx < SandCols - 1)
+                    {
+                        TryVisitNeighbor(index + 1, color, visitStamp, ref stackCount);
+                    }
+
+                    if (cy > 0)
+                    {
+                        TryVisitNeighbor(index - SandCols, color, visitStamp, ref stackCount);
+                    }
+
+                    if (cy < SandRows - 1)
+                    {
+                        TryVisitNeighbor(index + SandCols, color, visitStamp, ref stackCount);
+                    }
                 }
 
                 if (!touchesRight)
@@ -281,12 +413,9 @@ namespace FlowSand.Core
                     continue;
                 }
 
-                for (int i = 0; i < bridgeComponent.Count; i++)
+                for (int i = 0; i < componentCount; i++)
                 {
-                    if (bridgeClearSet.Add(bridgeComponent[i]))
-                    {
-                        bridgeResult.Add(bridgeComponent[i]);
-                    }
+                    bridgeResult.Add(bridgeComponent[i]);
                 }
             }
 
@@ -321,9 +450,14 @@ namespace FlowSand.Core
                     return true;
                 }
 
-                if (sandStartY < 0 || sandStartY + GrainScale > SandRows)
+                if (sandStartY < 0)
                 {
                     return true;
+                }
+
+                if (sandStartY >= SandRows)
+                {
+                    continue;
                 }
 
                 for (int dx = 0; dx < GrainScale; dx++)
@@ -353,16 +487,21 @@ namespace FlowSand.Core
             return x >= 0 && x < SandCols && y >= 0 && y < SandRows;
         }
 
+        internal CellColor GetSandByIndex(int index)
+        {
+            return sandGrid[index];
+        }
+
         private ActivePiece CreateQueuedPiece(System.Random random)
         {
-            if (pieceBag.Count == 0)
+            if (pieceBagIndex >= pieceBag.Length)
             {
                 RefillBag(random);
             }
 
             return new ActivePiece
             {
-                Kind = pieceBag.Dequeue(),
+                Kind = pieceBag[pieceBagIndex++],
                 Color = TetrominoLibrary.RandomColor(random),
                 Rotation = 0,
                 Col = 0,
@@ -372,53 +511,47 @@ namespace FlowSand.Core
 
         private void RefillBag(System.Random random)
         {
-            List<TetrominoKind> values = new()
-            {
-                TetrominoKind.I,
-                TetrominoKind.O,
-                TetrominoKind.T,
-                TetrominoKind.S,
-                TetrominoKind.Z,
-                TetrominoKind.J,
-                TetrominoKind.L,
-            };
+            pieceBag[0] = TetrominoKind.I;
+            pieceBag[1] = TetrominoKind.O;
+            pieceBag[2] = TetrominoKind.T;
+            pieceBag[3] = TetrominoKind.S;
+            pieceBag[4] = TetrominoKind.Z;
+            pieceBag[5] = TetrominoKind.J;
+            pieceBag[6] = TetrominoKind.L;
 
-            for (int i = values.Count - 1; i > 0; i--)
+            for (int i = pieceBag.Length - 1; i > 0; i--)
             {
                 int swapIndex = random.Next(i + 1);
-                (values[i], values[swapIndex]) = (values[swapIndex], values[i]);
+                (pieceBag[i], pieceBag[swapIndex]) = (pieceBag[swapIndex], pieceBag[i]);
             }
 
-            for (int i = 0; i < values.Count; i++)
-            {
-                pieceBag.Enqueue(values[i]);
-            }
+            pieceBagIndex = 0;
         }
 
-        private void TryVisitNeighbor(int x, int y, CellColor targetColor, HashSet<int> visited, Stack<int> stack)
+        private void TryVisitNeighbor(int index, CellColor targetColor, int visitStamp, ref int stackCount)
         {
-            if (!IsInsideSand(x, y))
+            if (bridgeVisitStamps[index] == visitStamp || sandGrid[index] != targetColor)
             {
                 return;
             }
 
-            int index = ToIndex(x, y);
-            if (visited.Contains(index) || sandGrid[index] != targetColor)
-            {
-                return;
-            }
-
-            visited.Add(index);
-            stack.Push(index);
+            bridgeVisitStamps[index] = visitStamp;
+            bridgeStack[stackCount++] = index;
         }
 
-        private static void Shuffle(System.Random random, int[] buffer)
+        private int NextBridgeVisitStamp()
         {
-            for (int i = buffer.Length - 1; i > 0; i--)
+            if (bridgeVisitStamp == int.MaxValue)
             {
-                int swapIndex = random.Next(i + 1);
-                (buffer[i], buffer[swapIndex]) = (buffer[swapIndex], buffer[i]);
+                Array.Clear(bridgeVisitStamps, 0, bridgeVisitStamps.Length);
+                bridgeVisitStamp = 1;
             }
+            else
+            {
+                bridgeVisitStamp += 1;
+            }
+
+            return bridgeVisitStamp;
         }
     }
 }

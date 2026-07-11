@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using UnityEngine;
 
 namespace FlowSand.Core
@@ -67,10 +66,8 @@ namespace FlowSand.Core
 
     public static class TetrominoLibrary
     {
-        private static readonly Dictionary<TetrominoKind, TetrominoDefinition> Definitions = new()
+        private static readonly TetrominoDefinition[] Definitions =
         {
-            {
-                TetrominoKind.I,
                 new TetrominoDefinition(
                     TetrominoKind.I,
                     new[]
@@ -79,10 +76,7 @@ namespace FlowSand.Core
                         Cells((2, 0), (2, 1), (2, 2), (2, 3)),
                         Cells((0, 2), (1, 2), (2, 2), (3, 2)),
                         Cells((1, 0), (1, 1), (1, 2), (1, 3)),
-                    })
-            },
-            {
-                TetrominoKind.O,
+                    }),
                 new TetrominoDefinition(
                     TetrominoKind.O,
                     new[]
@@ -91,10 +85,7 @@ namespace FlowSand.Core
                         Cells((1, 0), (2, 0), (1, 1), (2, 1)),
                         Cells((1, 0), (2, 0), (1, 1), (2, 1)),
                         Cells((1, 0), (2, 0), (1, 1), (2, 1)),
-                    })
-            },
-            {
-                TetrominoKind.T,
+                    }),
                 new TetrominoDefinition(
                     TetrominoKind.T,
                     new[]
@@ -103,10 +94,7 @@ namespace FlowSand.Core
                         Cells((1, 0), (1, 1), (2, 1), (1, 2)),
                         Cells((0, 1), (1, 1), (2, 1), (1, 2)),
                         Cells((1, 0), (0, 1), (1, 1), (1, 2)),
-                    })
-            },
-            {
-                TetrominoKind.S,
+                    }),
                 new TetrominoDefinition(
                     TetrominoKind.S,
                     new[]
@@ -115,10 +103,7 @@ namespace FlowSand.Core
                         Cells((1, 0), (1, 1), (2, 1), (2, 2)),
                         Cells((1, 1), (2, 1), (0, 2), (1, 2)),
                         Cells((0, 0), (0, 1), (1, 1), (1, 2)),
-                    })
-            },
-            {
-                TetrominoKind.Z,
+                    }),
                 new TetrominoDefinition(
                     TetrominoKind.Z,
                     new[]
@@ -127,10 +112,7 @@ namespace FlowSand.Core
                         Cells((2, 0), (1, 1), (2, 1), (1, 2)),
                         Cells((0, 1), (1, 1), (1, 2), (2, 2)),
                         Cells((1, 0), (0, 1), (1, 1), (0, 2)),
-                    })
-            },
-            {
-                TetrominoKind.J,
+                    }),
                 new TetrominoDefinition(
                     TetrominoKind.J,
                     new[]
@@ -139,10 +121,7 @@ namespace FlowSand.Core
                         Cells((1, 0), (2, 0), (1, 1), (1, 2)),
                         Cells((0, 1), (1, 1), (2, 1), (2, 2)),
                         Cells((1, 0), (1, 1), (0, 2), (1, 2)),
-                    })
-            },
-            {
-                TetrominoKind.L,
+                    }),
                 new TetrominoDefinition(
                     TetrominoKind.L,
                     new[]
@@ -151,23 +130,28 @@ namespace FlowSand.Core
                         Cells((1, 0), (1, 1), (1, 2), (2, 2)),
                         Cells((0, 1), (1, 1), (2, 1), (0, 2)),
                         Cells((0, 0), (1, 0), (1, 1), (1, 2)),
-                    })
-            },
+                    }),
         };
 
         private static readonly CellColor[] Palette = { CellColor.Coral, CellColor.Mint, CellColor.Gold, CellColor.Sky, CellColor.Violet };
+        private static readonly BoardBounds[,] Bounds = BuildBounds();
 
         public static TetrominoDefinition Get(TetrominoKind kind)
         {
-            return Definitions[kind];
+            return Definitions[(int)kind];
         }
 
         public static Vector2Int[] GetCells(TetrominoKind kind, int rotation)
         {
-            return Definitions[kind].Rotations[rotation & 3];
+            return Definitions[(int)kind].Rotations[rotation & 3];
         }
 
         public static BoardBounds GetBounds(TetrominoKind kind, int rotation)
+        {
+            return Bounds[(int)kind, rotation & 3];
+        }
+
+        private static BoardBounds CalculateBounds(TetrominoKind kind, int rotation)
         {
             Vector2Int[] cells = GetCells(kind, rotation);
             int minX = int.MaxValue;
@@ -189,8 +173,7 @@ namespace FlowSand.Core
 
         public static TetrominoKind RandomKind(System.Random random)
         {
-            Array values = Enum.GetValues(typeof(TetrominoKind));
-            return (TetrominoKind)values.GetValue(random.Next(values.Length));
+            return (TetrominoKind)random.Next(Definitions.Length);
         }
 
         public static CellColor RandomColor(System.Random random)
@@ -207,6 +190,20 @@ namespace FlowSand.Core
             }
 
             return result;
+        }
+
+        private static BoardBounds[,] BuildBounds()
+        {
+            BoardBounds[,] bounds = new BoardBounds[Definitions.Length, 4];
+            for (int kind = 0; kind < Definitions.Length; kind++)
+            {
+                for (int rotation = 0; rotation < 4; rotation++)
+                {
+                    bounds[kind, rotation] = CalculateBounds((TetrominoKind)kind, rotation);
+                }
+            }
+
+            return bounds;
         }
     }
 }

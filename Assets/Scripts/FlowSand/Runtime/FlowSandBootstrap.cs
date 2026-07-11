@@ -7,7 +7,7 @@ namespace FlowSand.Runtime
         [RuntimeInitializeOnLoadMethod(RuntimeInitializeLoadType.AfterSceneLoad)]
         private static void Initialize()
         {
-            if (Object.FindObjectOfType<FlowSandGameController>() != null)
+            if (Object.FindAnyObjectByType<FlowSandGameController>() != null)
             {
                 return;
             }

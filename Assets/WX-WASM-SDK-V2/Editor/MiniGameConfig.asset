@@ -40,7 +40,7 @@ MonoBehaviour:
     loadingBarWidth: 240
     needCheckUpdate: 0
     disableHighPerformanceFallback: 0
-    IOSDevicePixelRatio: 0
+    IOSDevicePixelRatio: 2
   SDKOptions:
     UseFriendRelation: 0
     UseCompressedTexture: 1
@@ -52,7 +52,7 @@ MonoBehaviour:
     AutoProfile: 0
     ScriptOnly: 0
     Il2CppOptimizeSize: 1
-    profilingFuncs: 1
+    profilingFuncs: 0
     Webgl2: 1
     fbslim: 0
     DeleteStreamingAssets: 1
@@ -60,7 +60,7 @@ MonoBehaviour:
     CleanBuild: 0
     CustomNodePath: 
     autoAdaptScreen: 0
-    showMonitorSuggestModal: 1
+    showMonitorSuggestModal: 0
     enableProfileStats: 0
     enableRenderAnalysis: 0
     enablePerfAnalysis: 0
@@ -68,7 +68,7 @@ MonoBehaviour:
     enableIOSPerformancePlus: 0
     enableiOSMetal: 0
     enableEmscriptenGLX: 0
-    brotliMT: 1
+    brotliMT: 0
     enableWasm2023: 0
     enableRenderThread: 0
   CompressTexture:
@@ -82,24 +82,24 @@ MonoBehaviour:
     force: 0
   PlayerPrefsKeys: []
   FontOptions:
-    CJK_Unified_Ideographs: 1
+    CJK_Unified_Ideographs: 0
     C0_Controls_and_Basic_Latin: 1
-    CJK_Symbols_and_Punctuation: 1
-    General_Punctuation: 1
-    Enclosed_CJK_Letters_and_Months: 1
-    Vertical_Forms: 1
-    CJK_Compatibility_Forms: 1
-    Miscellaneous_Symbols: 1
-    CJK_Compatibility: 1
-    Halfwidth_and_Fullwidth_Forms: 1
-    Dingbats: 1
-    Letterlike_Symbols: 1
-    Enclosed_Alphanumerics: 1
-    Number_Forms: 1
-    Currency_Symbols: 1
-    Arrows: 1
-    Geometric_Shapes: 1
-    Mathematical_Operators: 1
+    CJK_Symbols_and_Punctuation: 0
+    General_Punctuation: 0
+    Enclosed_CJK_Letters_and_Months: 0
+    Vertical_Forms: 0
+    CJK_Compatibility_Forms: 0
+    Miscellaneous_Symbols: 0
+    CJK_Compatibility: 0
+    Halfwidth_and_Fullwidth_Forms: 0
+    Dingbats: 0
+    Letterlike_Symbols: 0
+    Enclosed_Alphanumerics: 0
+    Number_Forms: 0
+    Currency_Symbols: 0
+    Arrows: 0
+    Geometric_Shapes: 0
+    Mathematical_Operators: 0
     CustomUnicode: 
   MultiPackageMerge:
     outputPath: 

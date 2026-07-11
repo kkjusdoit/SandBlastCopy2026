@@ -1,5 +1,4 @@
 using System;
-using System.Collections.Generic;
 using FlowSand.Audio;
 using FlowSand.Core;
 using UnityEngine;
@@ -10,19 +9,19 @@ namespace FlowSand.Runtime
     {
         private const int CoarseCols = 10;
         private const int CoarseRows = 20;
-        private const int GrainScale = 8;
+        private const int GrainScale = 16;
         private const string HighScoreKey = "FlowSand.HighScore";
 
         private readonly Color32 backgroundColor = new(18, 20, 44, 255);
         private readonly Color32 borderColor = new(62, 201, 255, 255);
-        private readonly Dictionary<CellColor, Color32> palette = new()
+        private readonly Color32[] palette =
         {
-            { CellColor.Empty, new Color32(18, 20, 44, 255) },
-            { CellColor.Coral, new Color32(255, 73, 124, 255) },
-            { CellColor.Mint, new Color32(79, 220, 124, 255) },
-            { CellColor.Gold, new Color32(255, 202, 64, 255) },
-            { CellColor.Sky, new Color32(69, 164, 241, 255) },
-            { CellColor.Violet, new Color32(162, 111, 255, 255) },
+            new(18, 20, 44, 255),
+            new(255, 73, 124, 255),
+            new(79, 220, 124, 255),
+            new(255, 202, 64, 255),
+            new(69, 164, 241, 255),
+            new(162, 111, 255, 255),
         };
 
         private FlowSandBoard board;
@@ -34,6 +33,9 @@ namespace FlowSand.Runtime
         private PlatformKeyboard keyboard;
         private bool softDropHeld;
         private bool uiSoftDropHeld;
+        private bool boardVisualDirty;
+        private bool nextVisualDirty;
+        private bool hudVisualDirty;
         private bool initialized;
 
         private async void Start()
@@ -55,15 +57,16 @@ namespace FlowSand.Runtime
                 () => TryMove(1),
                 () => TryMove(1),
                 TryRotate,
-                () => uiSoftDropHeld = true,
+                BeginSoftDrop,
                 () => uiSoftDropHeld = false);
 
             sfxPlayer = gameObject.AddComponent<FlowSandSfxPlayer>();
             boardRenderer = new FlowSandBoardRenderer(board, view.BoardImage, view.NextImage, palette, backgroundColor, borderColor);
 
             ShowTitleScreen();
-            RefreshAllVisuals();
             initialized = true;
+            InvalidateAllVisuals();
+            FlushVisuals();
         }
 
         private void Update()
@@ -80,22 +83,37 @@ namespace FlowSand.Runtime
                 return;
             }
 
-            bool needsSpawn = match.UpdateGameplay(
-                board,
-                random,
-                Time.unscaledDeltaTime,
-                softDropHeld,
-                () => sfxPlayer.PlayLock(),
-                () => sfxPlayer.PlayClear(),
-                OnHighScoreChanged);
+            GameplayUpdate update = match.UpdateGameplay(board, random, Time.unscaledDeltaTime, softDropHeld);
+            boardVisualDirty |= update.BoardChanged;
+            hudVisualDirty |= update.HudChanged;
 
-            if (needsSpawn)
+            if (update.PieceLocked)
+            {
+                sfxPlayer.PlayLock();
+            }
+
+            if (update.Cleared)
+            {
+                sfxPlayer.PlayClear();
+            }
+
+            if (update.HighScoreChanged)
+            {
+                OnHighScoreChanged(match.HighScore);
+            }
+
+            if (update.NeedsSpawn)
             {
                 SpawnNextPieceOrEnd();
             }
+        }
 
-            RefreshHud();
-            boardRenderer.RedrawBoard(match.PendingClearLookup, match.FlashVisible);
+        private void LateUpdate()
+        {
+            if (initialized)
+            {
+                FlushVisuals();
+            }
         }
 
         private void HandleKeyboardShortcuts()
@@ -138,6 +156,7 @@ namespace FlowSand.Runtime
         private void OnDestroy()
         {
             keyboard?.Dispose();
+            boardRenderer?.Dispose();
         }
 
         private void StartGame()
@@ -152,7 +171,7 @@ namespace FlowSand.Runtime
 
             SpawnNextPieceOrEnd();
             sfxPlayer.PlayStart();
-            RefreshAllVisuals();
+            InvalidateAllVisuals();
         }
 
         private void SpawnNextPieceOrEnd()
@@ -164,9 +183,13 @@ namespace FlowSand.Runtime
 
             if (board.SpawnNextPiece(random))
             {
+                boardVisualDirty = true;
+                nextVisualDirty = true;
                 return;
             }
 
+            boardVisualDirty = true;
+            nextVisualDirty = true;
             match.MarkGameOver();
             view.SetPauseButton(false);
             view.SetOverlay(
@@ -213,7 +236,7 @@ namespace FlowSand.Runtime
             if (board.TryMoveHorizontal(delta))
             {
                 sfxPlayer.PlayMove();
-                boardRenderer.RedrawBoard(match.PendingClearLookup, match.FlashVisible);
+                boardVisualDirty = true;
             }
         }
 
@@ -227,8 +250,19 @@ namespace FlowSand.Runtime
             if (board.TryRotate())
             {
                 sfxPlayer.PlayRotate();
-                boardRenderer.RedrawBoard(match.PendingClearLookup, match.FlashVisible);
+                boardVisualDirty = true;
             }
+        }
+
+        private void BeginSoftDrop()
+        {
+            uiSoftDropHeld = true;
+            if (!match.CanControlPiece || !board.TryStepDown())
+            {
+                return;
+            }
+
+            boardVisualDirty = true;
         }
 
         private void ShowTitleScreen()
@@ -243,17 +277,32 @@ namespace FlowSand.Runtime
                 "START RUN");
         }
 
-        private void RefreshAllVisuals()
+        private void InvalidateAllVisuals()
         {
-            RefreshHud();
-            boardRenderer.RedrawBoard(match.PendingClearLookup, match.FlashVisible);
-            boardRenderer.RedrawNext();
+            boardVisualDirty = true;
+            nextVisualDirty = true;
+            hudVisualDirty = true;
         }
 
-        private void RefreshHud()
+        private void FlushVisuals()
         {
-            view.SetHud(match.Score, match.HighScore, match.GetSpeedLevel());
-            boardRenderer.RedrawNext();
+            if (hudVisualDirty)
+            {
+                view.SetHud(match.Score, match.HighScore, match.GetSpeedLevel());
+                hudVisualDirty = false;
+            }
+
+            if (nextVisualDirty)
+            {
+                boardRenderer.RedrawNext();
+                nextVisualDirty = false;
+            }
+
+            if (boardVisualDirty)
+            {
+                boardRenderer.RedrawBoard(match.PendingClearMask, match.FlashVisible);
+                boardVisualDirty = false;
+            }
         }
 
         private void ConfigureCamera()
@@ -268,6 +317,9 @@ namespace FlowSand.Runtime
             mainCamera.orthographicSize = 5f;
             mainCamera.backgroundColor = new Color32(7, 9, 20, 255);
             mainCamera.clearFlags = CameraClearFlags.SolidColor;
+            mainCamera.allowHDR = false;
+            mainCamera.allowMSAA = false;
+            mainCamera.useOcclusionCulling = false;
         }
 
         private void OnOverlayButtonPressed()

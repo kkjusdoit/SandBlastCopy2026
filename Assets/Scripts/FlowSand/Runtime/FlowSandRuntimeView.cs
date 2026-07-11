@@ -27,6 +27,9 @@ namespace FlowSand.Runtime
         private IControl overlayPanel;
         private IControl dimmer;
         private OverlayReveal overlayReveal;
+        private int displayedScore = int.MinValue;
+        private int displayedBest = int.MinValue;
+        private int displayedSpeed = int.MinValue;
 
         public UnityRawImage BoardImage { get; private set; }
         public UnityRawImage NextImage { get; private set; }
@@ -85,9 +88,23 @@ namespace FlowSand.Runtime
 
         public void SetHud(int score, int best, int speed)
         {
-            scoreText.TextValue = score.ToString();
-            bestText.TextValue = best.ToString();
-            speedText.TextValue = speed.ToString();
+            if (score != displayedScore)
+            {
+                displayedScore = score;
+                scoreText.TextValue = score.ToString();
+            }
+
+            if (best != displayedBest)
+            {
+                displayedBest = best;
+                bestText.TextValue = best.ToString();
+            }
+
+            if (speed != displayedSpeed)
+            {
+                displayedSpeed = speed;
+                speedText.TextValue = speed.ToString();
+            }
         }
 
         public void SetOverlay(bool visible, string title = null, string subtitle = null, string message = null, string buttonText = null)

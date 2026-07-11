@@ -1,35 +1,40 @@
 using System;
-using System.Collections.Generic;
 using FlowSand.Core;
+using Unity.Collections;
 using UnityEngine;
 using UnityEngine.UI;
 
 namespace FlowSand.Runtime
 {
-    public sealed class FlowSandBoardRenderer
+    public sealed class FlowSandBoardRenderer : IDisposable
     {
+        private const int ShadeVariants = 18;
+        private static readonly Color32 FlashColor = new(255, 255, 255, 255);
+
         private readonly FlowSandBoard board;
-        private readonly Dictionary<CellColor, Color32> palette;
+        private readonly Color32[] palette;
+        private readonly Color32[] grainColors;
         private readonly Color32 backgroundColor;
         private readonly Color32 borderColor;
         private readonly Texture2D boardTexture;
         private readonly Texture2D nextTexture;
-        private readonly Color32[] boardPixels;
-        private readonly Color32[] nextPixels;
+        private NativeArray<Color32> boardPixels;
+        private NativeArray<Color32> nextPixels;
 
-        public FlowSandBoardRenderer(FlowSandBoard board, RawImage boardImage, RawImage nextImage, Dictionary<CellColor, Color32> palette, Color32 backgroundColor, Color32 borderColor)
+        public FlowSandBoardRenderer(FlowSandBoard board, RawImage boardImage, RawImage nextImage, Color32[] palette, Color32 backgroundColor, Color32 borderColor)
         {
             this.board = board;
             this.palette = palette;
             this.backgroundColor = backgroundColor;
             this.borderColor = borderColor;
+            grainColors = BuildGrainColors(palette);
 
             boardTexture = new Texture2D(board.SandCols + 2, board.SandRows + 2, TextureFormat.RGBA32, false)
             {
                 filterMode = FilterMode.Point,
                 wrapMode = TextureWrapMode.Clamp,
             };
-            boardPixels = new Color32[boardTexture.width * boardTexture.height];
+            boardPixels = boardTexture.GetRawTextureData<Color32>();
             boardImage.texture = boardTexture;
 
             nextTexture = new Texture2D(34, 34, TextureFormat.RGBA32, false)
@@ -37,15 +42,15 @@ namespace FlowSand.Runtime
                 filterMode = FilterMode.Point,
                 wrapMode = TextureWrapMode.Clamp,
             };
-            nextPixels = new Color32[nextTexture.width * nextTexture.height];
+            nextPixels = nextTexture.GetRawTextureData<Color32>();
             nextImage.texture = nextTexture;
         }
 
-        public void RedrawBoard(HashSet<int> flashingCells, bool flashVisible)
+        public void RedrawBoard(bool[] flashingCells, bool flashVisible)
         {
             int width = boardTexture.width;
             int height = boardTexture.height;
-            Array.Fill(boardPixels, backgroundColor);
+            Fill(boardPixels, backgroundColor);
 
             for (int x = 0; x < width; x++)
             {
@@ -63,14 +68,14 @@ namespace FlowSand.Runtime
             {
                 for (int x = 0; x < board.SandCols; x++)
                 {
-                    CellColor cell = board.GetSand(x, y);
+                    int index = board.ToIndex(x, y);
+                    CellColor cell = board.GetSandByIndex(index);
                     if (cell == CellColor.Empty)
                     {
                         continue;
                     }
 
-                    int index = board.ToIndex(x, y);
-                    bool isFlashing = flashingCells.Contains(index);
+                    bool isFlashing = index < flashingCells.Length && flashingCells[index];
                     Color32 color = GetGrainColor(cell, x, y, isFlashing, flashVisible);
                     SetBoardPixel(x + 1, y + 1, color);
                 }
@@ -81,13 +86,12 @@ namespace FlowSand.Runtime
                 DrawActivePiece(board.CurrentPiece.Value);
             }
 
-            boardTexture.SetPixels32(boardPixels);
             boardTexture.Apply(false, false);
         }
 
         public void RedrawNext()
         {
-            Array.Fill(nextPixels, new Color32(17, 19, 36, 255));
+            Fill(nextPixels, new Color32(17, 19, 36, 255));
             int width = nextTexture.width;
             int height = nextTexture.height;
 
@@ -108,7 +112,7 @@ namespace FlowSand.Runtime
             BoardBounds bounds = TetrominoLibrary.GetBounds(next.Kind, 0);
             int offsetX = ((width - 2) - (bounds.Width * 6)) / 2 - (bounds.MinX * 6);
             int offsetY = ((height - 2) - (bounds.Height * 6)) / 2 - (bounds.MinY * 6);
-            Color32 color = palette[next.Color];
+            Color32 color = palette[(int)next.Color];
 
             for (int i = 0; i < cells.Length; i++)
             {
@@ -128,14 +132,19 @@ namespace FlowSand.Runtime
                 }
             }
 
-            nextTexture.SetPixels32(nextPixels);
             nextTexture.Apply(false, false);
+        }
+
+        public void Dispose()
+        {
+            UnityEngine.Object.Destroy(boardTexture);
+            UnityEngine.Object.Destroy(nextTexture);
         }
 
         private void DrawActivePiece(ActivePiece piece)
         {
             Vector2Int[] cells = TetrominoLibrary.GetCells(piece.Kind, piece.Rotation);
-            Color32 pieceColor = palette[piece.Color];
+            Color32 pieceColor = palette[(int)piece.Color];
 
             for (int i = 0; i < cells.Length; i++)
             {
@@ -166,24 +175,47 @@ namespace FlowSand.Runtime
 
         private Color32 GetGrainColor(CellColor cell, int x, int y, bool flashing, bool flashVisible)
         {
-            Color32 baseColor = palette[cell];
+            Color32 baseColor = palette[(int)cell];
             if (flashing)
             {
-                return flashVisible ? new Color32(255, 255, 255, 255) : baseColor;
+                return flashVisible ? FlashColor : baseColor;
             }
 
             int jitter = ((x * 13) + (y * 7)) % 18;
-            int lift = jitter - 8;
-            return new Color32(
-                (byte)Mathf.Clamp(baseColor.r + lift, 0, 255),
-                (byte)Mathf.Clamp(baseColor.g + lift, 0, 255),
-                (byte)Mathf.Clamp(baseColor.b + lift, 0, 255),
-                255);
+            return grainColors[((int)cell * ShadeVariants) + jitter];
         }
 
         private void SetBoardPixel(int x, int y, Color32 color)
         {
             boardPixels[(y * boardTexture.width) + x] = color;
+        }
+
+        private static void Fill(NativeArray<Color32> pixels, Color32 color)
+        {
+            for (int i = 0; i < pixels.Length; i++)
+            {
+                pixels[i] = color;
+            }
+        }
+
+        private static Color32[] BuildGrainColors(Color32[] palette)
+        {
+            Color32[] colors = new Color32[palette.Length * ShadeVariants];
+            for (int cell = 0; cell < palette.Length; cell++)
+            {
+                Color32 baseColor = palette[cell];
+                for (int jitter = 0; jitter < ShadeVariants; jitter++)
+                {
+                    int lift = jitter - 8;
+                    colors[(cell * ShadeVariants) + jitter] = new Color32(
+                        (byte)Mathf.Clamp(baseColor.r + lift, 0, 255),
+                        (byte)Mathf.Clamp(baseColor.g + lift, 0, 255),
+                        (byte)Mathf.Clamp(baseColor.b + lift, 0, 255),
+                        255);
+                }
+            }
+
+            return colors;
         }
     }
 }

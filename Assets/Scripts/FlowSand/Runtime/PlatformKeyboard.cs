@@ -104,13 +104,19 @@ namespace FlowSand.Runtime
 
         private static bool TryGetKeyCode(string code, out KeyCode key)
         {
+            key = KeyCode.None;
             if (string.IsNullOrEmpty(code))
             {
-                key = KeyCode.None;
                 return false;
             }
 
-            return WebKeyCodes.TryGetValue(code, out key);
+            if (!WebKeyCodes.TryGetValue(code, out KeyCode mappedKey))
+            {
+                return false;
+            }
+
+            key = mappedKey;
+            return true;
         }
 #endif
     }
