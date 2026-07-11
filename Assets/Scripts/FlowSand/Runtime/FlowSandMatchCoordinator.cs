@@ -175,7 +175,7 @@ namespace FlowSand.Runtime
             float stepInterval = GetCurrentDropInterval();
             if (softDropHeld)
             {
-                stepInterval *= 0.05f;
+                stepInterval *= 0.1f;
             }
 
             while (pieceFallTimer >= stepInterval)

@@ -76,14 +76,38 @@ namespace FlowSand.UI
                 return;
             }
 
-            int targetDirection;
+            int targetDirection = 0;
             if (Mathf.Abs(offset.x) >= Mathf.Abs(offset.y))
             {
                 targetDirection = offset.x < 0f ? 1 : 2;
             }
             else
             {
-                targetDirection = offset.y > 0f ? 3 : 4;
+                // For vertical moves (Up/Down), enforce a higher distance threshold and strict angle constraints
+                // to prevent accidental rotation triggers during left/right sliding.
+                float verticalThreshold = DeadZoneDistance() * 1.6f;
+                if (offset.y > 0f)
+                {
+                    // UP (Rotate) requires dragging the knob significantly upwards and a steep swipe angle
+                    if (offset.y >= verticalThreshold && offset.y > Mathf.Abs(offset.x) * 1.5f)
+                    {
+                        targetDirection = 3;
+                    }
+                }
+                else
+                {
+                    // DOWN (Hard Drop) requires dragging the knob downwards and a clear vertical bias
+                    if (Mathf.Abs(offset.y) >= verticalThreshold && Mathf.Abs(offset.y) > Mathf.Abs(offset.x) * 1.2f)
+                    {
+                        targetDirection = 4;
+                    }
+                }
+            }
+
+            if (targetDirection == 0)
+            {
+                currentDirection = 0;
+                return;
             }
 
             if (targetDirection != currentDirection)
