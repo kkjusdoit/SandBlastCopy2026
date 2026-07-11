@@ -97,7 +97,7 @@ namespace FlowSand.Runtime
             swipeInput.OnSwipeUp = rotate;
             swipeInput.OnSwipeDown = hardDrop;
 
-            TMP_Text comboText = Text("Combo", boardSlot, "", 54, Accent, TextAlignmentOptions.Center, L(.5f, 1, .5f, 1, -260, -150, 260, -60));
+            TMP_Text comboText = Text("Combo", boardSlot, "", 54, Accent, TextAlignmentOptions.Center, L(.5f, 1, .5f, 1, -260, -400, 260, -310));
             comboText.fontStyle = FontStyles.Bold;
             comboPopup = comboText.gameObject.AddComponent<ComboPopup>();
             comboPopup.Hide();
