@@ -1,6 +1,8 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
 using WeChatWASM;
@@ -9,6 +11,13 @@ public static class FlowSandWeChatBuild
 {
     private const string OutputOverrideVariable = "FLOW_SAND_WX_OUTPUT";
     private const string SplitSourceVariable = "FLOW_SAND_WASM_SPLIT_SOURCE";
+    private const string HotFunctionListName = "FlowSand-Wasm-HotFunctions.txt";
+    private static readonly Regex SymbolEntryRegex = new Regex(
+        "\\\"\\d+\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"",
+        RegexOptions.Compiled);
+    private static readonly Regex Il2CppHashRegex = new Regex(
+        "_m[0-9A-Fa-f]{40}$",
+        RegexOptions.Compiled);
 
     [MenuItem("Flow Sand/Build/Export WeChat Release")]
     public static void ExportRelease()
@@ -20,6 +29,14 @@ public static class FlowSandWeChatBuild
     public static void ExportWasmCollection()
     {
         Export(collectionBuild: true);
+    }
+
+    [MenuItem("Flow Sand/Build/Generate WASM Hot Function List")]
+    public static void GenerateWasmHotFunctionList()
+    {
+        string outputRoot = ResolveOutputRoot(WXConvertCore.config.ProjectConf.DST, collectionBuild: true);
+        string miniGameRoot = Path.Combine(outputRoot, WXConvertCore.miniGameDir);
+        GenerateWasmHotFunctionList(miniGameRoot);
     }
 
     [MenuItem("Flow Sand/Build/Integrate Official WASM Split Result")]
@@ -93,6 +110,11 @@ public static class FlowSandWeChatBuild
             }
 
             ValidateExport(outputRoot, collectionBuild);
+            if (collectionBuild)
+            {
+                string miniGameRoot = Path.Combine(outputRoot, WXConvertCore.miniGameDir);
+                GenerateWasmHotFunctionList(miniGameRoot);
+            }
         }
         finally
         {
@@ -159,6 +181,88 @@ public static class FlowSandWeChatBuild
         Debug.Log(
             $"[FlowSand Build] Validated {(collectionBuild ? "collection" : "release")} export. " +
             $"WASM artifacts={wasmFiles.Length}, WASM bytes={wasmBytes}, symbols bytes={symbolBytes}");
+    }
+
+    private static void GenerateWasmHotFunctionList(string miniGameRoot)
+    {
+        string projectRoot = Directory.GetParent(Application.dataPath)?.FullName
+            ?? throw new InvalidOperationException("Unable to resolve Unity project root.");
+        string templatePath = Path.Combine(projectRoot, HotFunctionListName);
+        string symbolsPath = Path.Combine(miniGameRoot, "webgl.wasm.symbols.unityweb");
+        string outputPath = Path.Combine(miniGameRoot, HotFunctionListName);
+
+        if (!File.Exists(templatePath))
+        {
+            throw new FileNotFoundException("WASM hot function template is missing", templatePath);
+        }
+
+        if (!File.Exists(symbolsPath))
+        {
+            throw new FileNotFoundException("WASM symbol table is missing", symbolsPath);
+        }
+
+        string symbolJson = File.ReadAllText(symbolsPath);
+        string[] symbols = SymbolEntryRegex.Matches(symbolJson)
+            .Cast<Match>()
+            .Select(match => match.Groups[1].Value)
+            .ToArray();
+        if (symbols.Length == 0)
+        {
+            throw new InvalidDataException($"No function names were parsed from {symbolsPath}");
+        }
+
+        string[] templateFunctions = File.ReadAllLines(templatePath)
+            .Select(line => line.Trim())
+            .Where(line => line.Length > 0 && !line.StartsWith("#", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        if (templateFunctions.Length == 0)
+        {
+            throw new InvalidDataException($"No function names were found in {templatePath}");
+        }
+
+        var resolved = new List<string>(templateFunctions.Length);
+        var failures = new List<string>();
+        foreach (string templateFunction in templateFunctions)
+        {
+            string stableName = Il2CppHashRegex.Replace(templateFunction, string.Empty);
+            string[] matches = symbols
+                .Where(symbol => symbol.Equals(templateFunction, StringComparison.Ordinal)
+                    || symbol.StartsWith(stableName + "_m", StringComparison.Ordinal))
+                .Distinct(StringComparer.Ordinal)
+                .ToArray();
+
+            if (matches.Length == 1)
+            {
+                resolved.Add(matches[0]);
+            }
+            else
+            {
+                failures.Add($"{stableName}: matches={matches.Length}");
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            throw new InvalidDataException(
+                "Unable to resolve every WASM hot function against the current symbol table:\n" +
+                string.Join("\n", failures));
+        }
+
+        string[] outputFunctions = resolved.Distinct(StringComparer.Ordinal).ToArray();
+        if (outputFunctions.Length != templateFunctions.Length)
+        {
+            throw new InvalidDataException(
+                $"Resolved hot function list contains duplicates: template={templateFunctions.Length}, " +
+                $"resolved={outputFunctions.Length}");
+        }
+
+        Directory.CreateDirectory(miniGameRoot);
+        File.WriteAllLines(outputPath, outputFunctions);
+        File.WriteAllLines(templatePath, outputFunctions);
+        Debug.Log(
+            $"[FlowSand Build] Generated and validated {outputFunctions.Length} WASM hot functions. " +
+            $"Upload file: {outputPath}");
     }
 
     private static string NormalizeMiniGameRoot(string path)

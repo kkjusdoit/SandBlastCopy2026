@@ -2,6 +2,9 @@ using System;
 using FlowSand.Audio;
 using FlowSand.Core;
 using UnityEngine;
+#if UNITY_WEBGL && !UNITY_EDITOR
+using WeChatWASM;
+#endif
 
 namespace FlowSand.Runtime
 {
@@ -113,7 +116,11 @@ namespace FlowSand.Runtime
             if (update.Cleared)
             {
                 sfxPlayer.PlayClear();
-                view.ShowCombo(match.Combo);
+                VibrateOnClear();
+                if (match.Combo >= 2)
+                {
+                    view.ShowCombo(match.Combo);
+                }
             }
 
             if (update.HighScoreChanged)
@@ -405,6 +412,16 @@ namespace FlowSand.Runtime
         {
             PlayerPrefs.SetInt(HighScoreKey, highScore);
             PlayerPrefs.Save();
+        }
+
+        private static void VibrateOnClear()
+        {
+#if UNITY_WEBGL && !UNITY_EDITOR
+            WX.VibrateShort(new VibrateShortOption
+            {
+                type = "medium",
+            });
+#endif
         }
     }
 }

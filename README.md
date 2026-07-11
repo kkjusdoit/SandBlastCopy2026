@@ -168,8 +168,8 @@
 2. 在微信开发者工具中打开上述 `minigame` 目录，再启用 WASM 代码分包。启用后不要再次从 Unity 覆盖导出。
 3. 若插件允许，选择上一次稳定 release 版本进行增量分包。
 4. 等待后台预处理完成。所有“生成 profile/release”按钮都只点击一次，禁止连点或重试叠加任务。
-5. 从当前导出目录的 `webgl.wasm.symbols.unityweb` 中筛选玩法热函数，并生成每行一个完整函数名的文本文件。
-6. 点击插件中的“选择函数名文件手动上报”，选择热函数清单。
+5. 使用 Unity 菜单 `Flow Sand/Build/Export WASM Collection Package` 导出时，构建工具会自动扫描当前 `webgl.wasm.symbols.unityweb`，更新 IL2CPP 函数哈希，并在小游戏目录生成 `FlowSand-Wasm-HotFunctions.txt`。若只需重新扫描已有导出，使用 `Flow Sand/Build/Generate WASM Hot Function List`。
+6. 点击插件中的“选择函数名文件手动上报”，选择 `minigame/FlowSand-Wasm-HotFunctions.txt`。
 7. 检查分包日志，必须出现类似 `[reportFuncNameList] 上报函数数量: 35`，且不得出现“未找到 symbols 中的 key”。
 8. 等后台“新增收集函数个数”更新后，只点击一次“生成 profile 版分包”。
 9. 确认 profile 首包函数中已经包含 `FlowSandGameController`、`FlowSandMatchCoordinator`、`FlowSandBoard`、`FlowSandBoardRenderer` 等真实玩法函数。
@@ -189,6 +189,8 @@
 - HUD 更新
 
 每次 WASM MD5 变化后，必须先确认该文件的每一行仍能在新的 `webgl.wasm.symbols.unityweb` 中精确匹配；若方法哈希变化，应按新符号表重新生成，不能直接上传旧文件。
+
+`FlowSandWeChatBuild` 会自动执行上述匹配：它使用函数名中 `_m<40 位哈希>` 之前的稳定方法名，在新符号表中寻找唯一匹配并更新哈希。缺失、重名或解析失败都会让导出明确报错，避免上传残缺清单。生成结果同时写入仓库模板和当前小游戏导出目录。
 
 ### 验收与故障排查
 
