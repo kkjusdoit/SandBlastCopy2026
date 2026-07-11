@@ -14,7 +14,7 @@ namespace FlowSand.Runtime
     public sealed class FlowSandRuntimeView
     {
         private const float BoardAspectRatio = 0.5f;
-        private const string RuntimeFontShaderName = "TextMeshPro/Mobile/Distance Field";
+        private const string RuntimeFontAssetPath = "Fonts/NotoSansSC-FlowSand SDF";
         private const float DefaultSafePadding = 42f;
         private const float MenuButtonGap = 20f;
 
@@ -51,13 +51,11 @@ namespace FlowSand.Runtime
                 throw new InvalidOperationException("Missing Chinese font at Resources/Fonts/NotoSansSC-FlowSand.");
             }
 
-            if (Shader.Find(RuntimeFontShaderName) == null)
+            fontAsset = Resources.Load<TMP_FontAsset>(RuntimeFontAssetPath);
+            if (fontAsset == null)
             {
-                throw new InvalidOperationException(
-                    $"Missing required shader '{RuntimeFontShaderName}'. Keep it in Graphics Settings > Always Included Shaders.");
+                throw new InvalidOperationException($"Missing baked TMP font asset at Resources/{RuntimeFontAssetPath}.");
             }
-
-            fontAsset = TMP_FontAsset.CreateFontAsset(sourceFont);
             GameObject root = new("FlowSand UI", typeof(Canvas), typeof(CanvasScaler), typeof(GraphicRaycaster));
             root.GetComponent<Canvas>().renderMode = RenderMode.ScreenSpaceOverlay;
             CanvasScaler scaler = root.GetComponent<CanvasScaler>();
