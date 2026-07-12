@@ -70,6 +70,12 @@ namespace FlowSand.Runtime
                 for (int x = 0; x < board.SandCols; x++)
                 {
                     int index = board.ToIndex(x, y);
+                    if (board.GetMaterialByIndex(index) == SandMaterial.Obstacle)
+                    {
+                        SetBoardPixel(x + 1, y + 1, GetObstacleColor(board.GetAuxByIndex(index), x, y));
+                        continue;
+                    }
+
                     CellColor cell = board.GetSandByIndex(index);
                     if (cell == CellColor.Empty)
                     {
@@ -190,6 +196,33 @@ namespace FlowSand.Runtime
 
             int jitter = ((x * 13) + (y * 7)) % 18;
             return grainColors[((int)cell * ShadeVariants) + jitter];
+        }
+
+        // Obstacle color encodes remaining hp so wear is readable at a glance:
+        // 3 = red (fresh), 2 = amber, 1 = green (about to break). A small
+        // per-grain shade lift keeps the block from looking flat.
+        private Color32 GetObstacleColor(byte hp, int x, int y)
+        {
+            Color32 baseColor;
+            switch (hp)
+            {
+                case 3:
+                    baseColor = new Color32(206, 76, 68, 255);
+                    break;
+                case 2:
+                    baseColor = new Color32(214, 158, 66, 255);
+                    break;
+                default:
+                    baseColor = new Color32(104, 182, 96, 255);
+                    break;
+            }
+
+            int lift = (((x * 13) + (y * 7)) % 12) - 6;
+            return new Color32(
+                (byte)Mathf.Clamp(baseColor.r + lift, 0, 255),
+                (byte)Mathf.Clamp(baseColor.g + lift, 0, 255),
+                (byte)Mathf.Clamp(baseColor.b + lift, 0, 255),
+                255);
         }
 
         private void DrawGameOverOverlay(int coarseRows)

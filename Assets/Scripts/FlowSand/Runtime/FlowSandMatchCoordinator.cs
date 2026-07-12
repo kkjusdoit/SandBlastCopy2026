@@ -289,6 +289,9 @@ namespace FlowSand.Runtime
                     return;
                 }
 
+                // Wear down obstacles touching the cleared region before the grains
+                // are removed, so erosion is driven by the player's clears.
+                board.ErodeObstaclesAround(pendingClearIndices);
                 board.ClearCells(pendingClearIndices);
                 waitingForSandToSettle = true;
                 bridgeCheckPending = false;

@@ -10,6 +10,11 @@ namespace FlowSand.Core
         private static readonly int[] RotationKicks = { 0, -1, 1, -2, 2 };
         private static readonly int[] SpawnOffsetValues = { -2, -1, 0, 1, 2 };
 
+        // Obstacle tuning. Each obstacle occupies a full coarse cell (GrainScale^2
+        // grains), and every grain starts at ObstacleMaxHp. A grain loses at most
+        // one hp per clear event; when it hits zero it becomes empty sand-space.
+        public const byte ObstacleMaxHp = 3;
+
         private readonly CellColor[] sandGrid;
         // Parallel planes keyed by the same index as sandGrid. materialGrid tags
         // each grain's behavior (Normal/Obstacle/Bomb); auxGrid stores a per-grain
@@ -23,6 +28,9 @@ namespace FlowSand.Core
         private readonly int[] bridgeVisitStamps;
         private readonly int[] bridgeComponent;
         private readonly int[] bridgeStack;
+        // Per-obstacle-grain stamp so a single clear event erodes each grain at
+        // most once even when several cleared grains touch the same obstacle.
+        private readonly int[] erosionStamps;
         private readonly List<int> bridgeResult;
 
         private int pieceBagIndex;
@@ -32,6 +40,7 @@ namespace FlowSand.Core
         private int mixedSpawnCount;
         private int spawnOffsetBagIndex;
         private int bridgeVisitStamp;
+        private int erosionStamp;
         private int sandStepCount;
 
         public FlowSandBoard(int coarseCols, int coarseRows, int grainScale)
@@ -49,6 +58,7 @@ namespace FlowSand.Core
             bridgeVisitStamps = new int[cellCount];
             bridgeComponent = new int[cellCount];
             bridgeStack = new int[cellCount];
+            erosionStamps = new int[cellCount];
             bridgeResult = new List<int>(cellCount);
             pieceBagIndex = pieceBag.Length;
             sizeBagIndex = sizeBag.Length;
@@ -86,6 +96,7 @@ namespace FlowSand.Core
             Array.Fill(sandGrid, CellColor.Empty);
             Array.Clear(materialGrid, 0, materialGrid.Length);
             Array.Clear(auxGrid, 0, auxGrid.Length);
+            Array.Clear(erosionStamps, 0, erosionStamps.Length);
             pieceBagIndex = pieceBag.Length;
             sizeBagIndex = sizeBag.Length;
             Array.Clear(mixedSpawnHistory, 0, mixedSpawnHistory.Length);
@@ -95,6 +106,7 @@ namespace FlowSand.Core
             spawnOffsetBagIndex = spawnOffsetBag.Length;
             LastSpawnOffset = 0;
             sandStepCount = 0;
+            erosionStamp = 0;
             CurrentPiece = null;
             NextPiece = CreateQueuedPiece(random);
         }
@@ -577,6 +589,151 @@ namespace FlowSand.Core
                     auxGrid[index] = 0;
                 }
             }
+        }
+
+        // --- Obstacles ---------------------------------------------------------
+
+        // Scatter `count` obstacle blocks in the middle band of the board. Each
+        // block fills one coarse cell (GrainScale x GrainScale grains) that is
+        // currently free. Returns how many were actually placed.
+        public int SpawnObstacles(int count, System.Random random)
+        {
+            if (count <= 0)
+            {
+                return 0;
+            }
+
+            // Keep obstacles away from the very top (fair spawns) and very bottom
+            // (they'd never erode). Middle band, expressed in coarse rows.
+            int minCoarseRow = Mathf.Max(1, CoarseRows / 5);
+            int maxCoarseRow = Mathf.Max(minCoarseRow, (CoarseRows * 3) / 5);
+            int placed = 0;
+
+            for (int attempt = 0; attempt < count * 12 && placed < count; attempt++)
+            {
+                int coarseCol = random.Next(0, CoarseCols);
+                int coarseRow = random.Next(minCoarseRow, maxCoarseRow + 1);
+                if (TryPlaceObstacleBlock(coarseCol, coarseRow))
+                {
+                    placed += 1;
+                }
+            }
+
+            return placed;
+        }
+
+        private bool TryPlaceObstacleBlock(int coarseCol, int coarseRow)
+        {
+            int sandStartX = coarseCol * GrainScale;
+            int sandStartY = coarseRow * GrainScale;
+            if (sandStartX < 0 || sandStartX + GrainScale > SandCols ||
+                sandStartY < 0 || sandStartY + GrainScale > SandRows)
+            {
+                return false;
+            }
+
+            // Only place on a fully free coarse cell so we never bury sand or
+            // overlap another obstacle.
+            for (int dx = 0; dx < GrainScale; dx++)
+            {
+                for (int dy = 0; dy < GrainScale; dy++)
+                {
+                    if (!IsEmpty(ToIndex(sandStartX + dx, sandStartY + dy)))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            for (int dx = 0; dx < GrainScale; dx++)
+            {
+                for (int dy = 0; dy < GrainScale; dy++)
+                {
+                    int index = ToIndex(sandStartX + dx, sandStartY + dy);
+                    materialGrid[index] = SandMaterial.Obstacle;
+                    auxGrid[index] = ObstacleMaxHp;
+                    sandGrid[index] = CellColor.Empty;
+                }
+            }
+
+            return true;
+        }
+
+        // Erode obstacle grains adjacent to freshly cleared grains. Called once
+        // per clear event with the just-cleared indices. Each obstacle grain loses
+        // at most one hp per event (dedup via erosionStamps); a grain reaching
+        // zero hp turns into empty space, opening the obstacle from its edges.
+        public void ErodeObstaclesAround(IReadOnlyList<int> clearedIndices)
+        {
+            int stamp = NextErosionStamp();
+            for (int i = 0; i < clearedIndices.Count; i++)
+            {
+                int index = clearedIndices[i];
+                if (index < 0 || index >= materialGrid.Length)
+                {
+                    continue;
+                }
+
+                int cx = index % SandCols;
+                int cy = index / SandCols;
+
+                if (cx > 0)
+                {
+                    TryErodeGrain(index - 1, stamp);
+                }
+
+                if (cx < SandCols - 1)
+                {
+                    TryErodeGrain(index + 1, stamp);
+                }
+
+                if (cy > 0)
+                {
+                    TryErodeGrain(index - SandCols, stamp);
+                }
+
+                if (cy < SandRows - 1)
+                {
+                    TryErodeGrain(index + SandCols, stamp);
+                }
+            }
+        }
+
+        private void TryErodeGrain(int index, int stamp)
+        {
+            if (materialGrid[index] != SandMaterial.Obstacle || erosionStamps[index] == stamp)
+            {
+                return;
+            }
+
+            erosionStamps[index] = stamp;
+            if (auxGrid[index] > 1)
+            {
+                auxGrid[index] -= 1;
+            }
+            else
+            {
+                // Fully worn through: revert to empty sand-space so grains can flow
+                // in and later clears can propagate through the gap.
+                materialGrid[index] = SandMaterial.Normal;
+                auxGrid[index] = 0;
+                sandGrid[index] = CellColor.Empty;
+            }
+        }
+
+        private int NextErosionStamp()
+        {
+            if (erosionStamp == int.MaxValue)
+            {
+                Array.Clear(erosionStamps, 0, erosionStamps.Length);
+                erosionStamp = 1;
+            }
+            else
+            {
+                erosionStamp += 1;
+            }
+
+            return erosionStamp;
         }
 
         public bool Collides(int col, int row, TetrominoKind kind, int rotation)

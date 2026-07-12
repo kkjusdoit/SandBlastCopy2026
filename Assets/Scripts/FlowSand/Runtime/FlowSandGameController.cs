@@ -13,6 +13,7 @@ namespace FlowSand.Runtime
         private const int CoarseCols = 12;
         private const int CoarseRows = 20;
         private const int GrainScale = 16;
+        private const int InitialObstacleCount = 4;
         private const string HighScoreKey = "FlowSand.HighScore.CellEquivalentV2";
         private const string SoundEnabledKey = "FlowSand.SoundEnabled";
         private const string VibrationEnabledKey = "FlowSand.VibrationEnabled";
@@ -298,6 +299,7 @@ namespace FlowSand.Runtime
         private void StartGame()
         {
             board.Reset(random);
+            board.SpawnObstacles(InitialObstacleCount, random);
             softDropHeld = false;
             uiSoftDropHeld = false;
             lockedButtonDirection = 0;
