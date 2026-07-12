@@ -69,6 +69,46 @@ FlowSand-Wasm-HotFunctions.txt
 
 采集包用于收集和生成 WASM 热函数列表，不应直接作为最终正式发布包。
 
+## 如何选择导出类型
+
+### Release
+
+`Export WeChat Release` 是可以直接预览、测试和发布的普通正式包。它的流程最简单、稳定性最好，适合：
+
+- 日常功能验证和真机调试。
+- 检查 `MinigameLoading` 封面插件是否正常显示和销毁。
+- 暂时不需要 WASM 代码分包优化的发布版本。
+
+当前需要验证启动封面时，应先使用 Release 导出，并用微信开发者工具打开：
+
+```text
+/Users/linkunkun/WeChatProjects/SandFlow/minigame
+```
+
+不要使用微信小游戏转换面板原来的导出按钮，否则不会执行项目在 `FlowSandWeChatBuild` 中定义的封面插件接入和导出检查。
+
+### WASM Collection
+
+`Export WASM Collection Package` 生成的是分析和采集包，只负责收集热函数并为后续代码分包提供数据。它不是最终运行包，不应上传体验版或正式版，也不应使用它判断正式版本的启动速度。
+
+默认采集目录为：
+
+```text
+/Users/linkunkun/WeChatProjects/SandFlow-WasmCollection/minigame
+```
+
+### WASM Split
+
+WASM Split 是微信官方工具完成代码分包后的最终产物。它通常具有更小的启动代码和更好的正式启动性能，但生成步骤更多，每次 WASM MD5 改变后都需要重新处理。
+
+推荐用途：
+
+- Release 用于快速验证功能和启动封面。
+- WASM Collection 只用于采集热函数。
+- 完成验证后，正式发布优先使用最终的 WASM Split 包。
+
+不要直接上传 `SandFlow-WasmCollection`。只有经过官方分包并执行 `Integrate Official WASM Split Result` 后的最终目录，才是可验证和发布的分包版本。
+
 ## 其他菜单
 
 ### Generate WASM Hot Function List
@@ -100,7 +140,7 @@ export FLOW_SAND_WASM_SPLIT_SOURCE=/absolute/path/to/official/split/minigame
 1. `Export WeChat Release`
 2. 用微信开发者工具打开 `<输出目录>/minigame`
 3. 清缓存并重新编译
-4. 在模拟器和真机检查启动、加载页、资源下载和首局游戏
+4. 确认 `game.json` 包含 `MinigameLoading`，并在真机检查启动封面、资源下载和首局游戏
 5. 上传体验版或正式版本
 
 需要 WASM 分包优化时执行：
@@ -112,6 +152,7 @@ export FLOW_SAND_WASM_SPLIT_SOURCE=/absolute/path/to/official/split/minigame
 5. 设置 `FLOW_SAND_WASM_SPLIT_SOURCE`
 6. 执行 `Integrate Official WASM Split Result`
 7. 用微信开发者工具验证整合后的 `minigame`
+8. 确认最终分包目录包含 `MinigameLoading` 后，再上传体验版或正式版本
 
 ## 常见问题
 

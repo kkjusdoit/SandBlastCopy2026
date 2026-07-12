@@ -222,23 +222,24 @@ public class FlowSandBoardTests
     }
 
     [Test]
-    public void EveryTenQueuedPiecesUseSixtyThirtyTenSizeMix()
+    public void EveryTwentyFourQueuedPiecesUseReducedMonominoMix()
     {
         FlowSandBoard board = new(10, 20, 1);
         System.Random random = new(17);
         board.Reset(random);
         int[] counts = new int[5];
 
-        for (int i = 0; i < 10; i++)
+        for (int i = 0; i < 24; i++)
         {
             int cellCount = TetrominoLibrary.GetCells(board.NextPiece.Kind, 0).Length;
             counts[cellCount] += 1;
             board.SpawnNextPiece(random);
         }
 
-        Assert.That(counts[4], Is.EqualTo(6));
-        Assert.That(counts[2], Is.EqualTo(3));
-        Assert.That(counts[1], Is.EqualTo(1));
+        Assert.That(counts[1], Is.EqualTo(3));
+        Assert.That(counts[2], Is.EqualTo(7));
+        Assert.That(counts[3], Is.EqualTo(7));
+        Assert.That(counts[4], Is.EqualTo(7));
     }
 
     [Test]

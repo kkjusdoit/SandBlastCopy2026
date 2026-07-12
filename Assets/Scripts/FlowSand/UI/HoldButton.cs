@@ -6,8 +6,8 @@ namespace FlowSand.UI
 {
     public sealed class HoldButton : MonoBehaviour, IPointerDownHandler, IPointerUpHandler, IPointerExitHandler
     {
-        [SerializeField] private float repeatDelay = 0.22f;
-        [SerializeField] private float repeatInterval = 0.09f;
+        [SerializeField] private float repeatDelay = 0.04f;
+        [SerializeField] private float repeatInterval = 0.025f;
 
         private bool isHeld;
         private float nextRepeatAt;

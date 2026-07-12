@@ -12,7 +12,7 @@ namespace FlowSand.Core
 
         private readonly CellColor[] sandGrid;
         private readonly TetrominoKind[] pieceBag = new TetrominoKind[7];
-        private readonly byte[] sizeBag = new byte[10];
+        private readonly byte[] sizeBag = new byte[24];
         private readonly bool[] mixedSpawnHistory = new bool[10];
         private readonly int[] spawnOffsetBag = new int[5];
         private readonly int[] bridgeVisitStamps;
@@ -639,7 +639,9 @@ namespace FlowSand.Core
                     ? TetrominoKind.Mono
                     : size == 2
                         ? TetrominoKind.Domino
-                        : TakeTetrominoFromBag(random),
+                        : size == 3
+                            ? TetrominoKind.Triomino
+                            : TakeTetrominoFromBag(random),
                 Color = TetrominoLibrary.RandomColor(random),
                 Rotation = 0,
                 Col = 0,
@@ -678,11 +680,17 @@ namespace FlowSand.Core
 
         private void RefillSizeBag(System.Random random)
         {
-            // Each ten-piece cycle contains 60% tetrominoes, 30% dominoes,
-            // and 10% monominoes, while shuffling their order independently.
+            // One-cell pieces use half of their former 25% share. The released
+            // probability is divided evenly between two-, three-, and four-cell pieces.
             for (int i = 0; i < sizeBag.Length; i++)
             {
-                sizeBag[i] = i < 6 ? (byte)4 : i < 9 ? (byte)2 : (byte)1;
+                sizeBag[i] = i < 3
+                    ? (byte)1
+                    : i < 10
+                        ? (byte)2
+                        : i < 17
+                            ? (byte)3
+                            : (byte)4;
             }
 
             for (int i = sizeBag.Length - 1; i > 0; i--)
