@@ -15,6 +15,13 @@ namespace FlowSand.Core
         // one hp per clear event; when it hits zero it becomes empty sand-space.
         public const byte ObstacleMaxHp = 3;
 
+        // Bomb tuning. A bomb occupies one coarse cell; auxGrid holds a countdown
+        // in "pieces spawned". It ticks down once per new piece and detonates at
+        // zero, blasting a circular crater. Defused early (cleared adjacent) it
+        // converts to a reward instead. BombBlastRadius is in grain units.
+        public const byte BombInitialFuse = 5;
+        public const int BombBlastRadius = 26;
+
         private readonly CellColor[] sandGrid;
         // Parallel planes keyed by the same index as sandGrid. materialGrid tags
         // each grain's behavior (Normal/Obstacle/Bomb); auxGrid stores a per-grain
@@ -734,6 +741,230 @@ namespace FlowSand.Core
             }
 
             return erosionStamp;
+        }
+
+        // --- Bombs -------------------------------------------------------------
+
+        // Place a single bomb on a free coarse cell in the middle band. auxGrid on
+        // its grains stores the shared fuse (pieces remaining). Returns true if
+        // placed.
+        public bool SpawnBomb(System.Random random)
+        {
+            int minCoarseRow = Mathf.Max(1, CoarseRows / 5);
+            int maxCoarseRow = Mathf.Max(minCoarseRow, (CoarseRows * 3) / 5);
+
+            for (int attempt = 0; attempt < 24; attempt++)
+            {
+                int coarseCol = random.Next(0, CoarseCols);
+                int coarseRow = random.Next(minCoarseRow, maxCoarseRow + 1);
+                if (TryPlaceBombBlock(coarseCol, coarseRow))
+                {
+                    return true;
+                }
+            }
+
+            return false;
+        }
+
+        private bool TryPlaceBombBlock(int coarseCol, int coarseRow)
+        {
+            int sandStartX = coarseCol * GrainScale;
+            int sandStartY = coarseRow * GrainScale;
+            if (sandStartX < 0 || sandStartX + GrainScale > SandCols ||
+                sandStartY < 0 || sandStartY + GrainScale > SandRows)
+            {
+                return false;
+            }
+
+            for (int dx = 0; dx < GrainScale; dx++)
+            {
+                for (int dy = 0; dy < GrainScale; dy++)
+                {
+                    if (!IsEmpty(ToIndex(sandStartX + dx, sandStartY + dy)))
+                    {
+                        return false;
+                    }
+                }
+            }
+
+            for (int dx = 0; dx < GrainScale; dx++)
+            {
+                for (int dy = 0; dy < GrainScale; dy++)
+                {
+                    int index = ToIndex(sandStartX + dx, sandStartY + dy);
+                    materialGrid[index] = SandMaterial.Bomb;
+                    auxGrid[index] = BombInitialFuse;
+                    sandGrid[index] = CellColor.Empty;
+                }
+            }
+
+            return true;
+        }
+
+        public bool HasBombs { get; private set; }
+
+        // Lowest fuse among all bombs on the board, or 0 when there are none.
+        // Used by the renderer to pulse bombs as they approach detonation.
+        public int MinimumBombFuse { get; private set; }
+
+        // Tick every bomb's fuse down by one (call once per new piece). Bombs that
+        // reach zero detonate: they carve a circular crater of sand and are removed.
+        // Returns true if any bomb detonated. Refreshes HasBombs/MinimumBombFuse.
+        public bool TickBombFuses()
+        {
+            bool detonated = false;
+            int minFuse = int.MaxValue;
+            bool anyBomb = false;
+
+            // First pass: decrement fuses. A bomb block shares one fuse across its
+            // grains, so decrement uniformly and collect detonation centers.
+            for (int i = 0; i < materialGrid.Length; i++)
+            {
+                if (materialGrid[i] != SandMaterial.Bomb)
+                {
+                    continue;
+                }
+
+                if (auxGrid[i] > 1)
+                {
+                    auxGrid[i] -= 1;
+                }
+                else
+                {
+                    auxGrid[i] = 0;
+                }
+            }
+
+            // Second pass: detonate any bomb grain whose fuse hit zero. Detonation
+            // clears the material first so the blast doesn't re-trigger itself.
+            for (int i = 0; i < materialGrid.Length; i++)
+            {
+                if (materialGrid[i] != SandMaterial.Bomb)
+                {
+                    continue;
+                }
+
+                if (auxGrid[i] == 0)
+                {
+                    DetonateBombAt(i);
+                    detonated = true;
+                }
+            }
+
+            // Third pass: recompute summary state over remaining bombs.
+            for (int i = 0; i < materialGrid.Length; i++)
+            {
+                if (materialGrid[i] != SandMaterial.Bomb)
+                {
+                    continue;
+                }
+
+                anyBomb = true;
+                if (auxGrid[i] < minFuse)
+                {
+                    minFuse = auxGrid[i];
+                }
+            }
+
+            HasBombs = anyBomb;
+            MinimumBombFuse = anyBomb ? minFuse : 0;
+            return detonated;
+        }
+
+        private void DetonateBombAt(int centerIndex)
+        {
+            int cx = centerIndex % SandCols;
+            int cy = centerIndex / SandCols;
+            int radiusSq = BombBlastRadius * BombBlastRadius;
+
+            int minX = Mathf.Max(0, cx - BombBlastRadius);
+            int maxX = Mathf.Min(SandCols - 1, cx + BombBlastRadius);
+            int minY = Mathf.Max(0, cy - BombBlastRadius);
+            int maxY = Mathf.Min(SandRows - 1, cy + BombBlastRadius);
+
+            for (int y = minY; y <= maxY; y++)
+            {
+                int dy = y - cy;
+                for (int x = minX; x <= maxX; x++)
+                {
+                    int dx = x - cx;
+                    if ((dx * dx) + (dy * dy) > radiusSq)
+                    {
+                        continue;
+                    }
+
+                    int index = ToIndex(x, y);
+                    // Blast clears sand and other bombs, but leaves obstacles
+                    // standing (they only yield to erosion).
+                    if (materialGrid[index] == SandMaterial.Obstacle)
+                    {
+                        continue;
+                    }
+
+                    sandGrid[index] = CellColor.Empty;
+                    materialGrid[index] = SandMaterial.Normal;
+                    auxGrid[index] = 0;
+                }
+            }
+        }
+
+        // Defuse any bomb whose grains are adjacent to a freshly cleared region.
+        // A defused bomb is removed (its grains become empty) rather than blowing
+        // up, rewarding the player for routing a clear through it. Returns the
+        // number of bomb blocks defused. Call in the clear event, like erosion.
+        public int DefuseBombsAround(IReadOnlyList<int> clearedIndices)
+        {
+            int stamp = NextErosionStamp();
+            int defusedGrains = 0;
+
+            for (int i = 0; i < clearedIndices.Count; i++)
+            {
+                int index = clearedIndices[i];
+                if (index < 0 || index >= materialGrid.Length)
+                {
+                    continue;
+                }
+
+                int cx = index % SandCols;
+                int cy = index / SandCols;
+
+                if (cx > 0)
+                {
+                    defusedGrains += TryDefuseGrain(index - 1, stamp);
+                }
+
+                if (cx < SandCols - 1)
+                {
+                    defusedGrains += TryDefuseGrain(index + 1, stamp);
+                }
+
+                if (cy > 0)
+                {
+                    defusedGrains += TryDefuseGrain(index - SandCols, stamp);
+                }
+
+                if (cy < SandRows - 1)
+                {
+                    defusedGrains += TryDefuseGrain(index + SandCols, stamp);
+                }
+            }
+
+            int perBlock = GrainScale * GrainScale;
+            return (defusedGrains + perBlock - 1) / perBlock;
+        }
+
+        private int TryDefuseGrain(int index, int stamp)
+        {
+            if (materialGrid[index] != SandMaterial.Bomb || erosionStamps[index] == stamp)
+            {
+                return 0;
+            }
+
+            erosionStamps[index] = stamp;
+            materialGrid[index] = SandMaterial.Normal;
+            auxGrid[index] = 0;
+            sandGrid[index] = CellColor.Empty;
+            return 1;
         }
 
 #if UNITY_EDITOR
