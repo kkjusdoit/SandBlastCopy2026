@@ -37,11 +37,12 @@ namespace FlowSand.Runtime
         private const float SecondsPerSpeedLevel = 30f;
         private const float InitialDropInterval = 0.7f;
         private const float DropIntervalPerLevel = 0.045f;
-        private const int MaximumSpeedLevel = 10;
+        private const int MaximumSpeedLevel = 15;
         private const float SandStepInterval = 0.004f;
         private const int MaximumSandStepsPerFrame = 8;
         private const int ScorePerCoarseCell = 1;
         private const int ColorChallengeScoreInterval = 200;
+        private const int MixedPieceScoreInterval = 30;
 
         private readonly List<int> pendingClearIndices = new();
         private bool[] pendingClearMask = Array.Empty<bool>();
@@ -56,6 +57,7 @@ namespace FlowSand.Runtime
         private bool resolvingPieceScored;
         private int consecutiveUnattendedScoringRounds;
         private int nextColorChallengeScore;
+        private int nextMixedPieceScore;
 
         public FlowSandMatchCoordinator(int highScore)
         {
@@ -94,6 +96,7 @@ namespace FlowSand.Runtime
             resolvingPieceScored = false;
             consecutiveUnattendedScoringRounds = 0;
             nextColorChallengeScore = ColorChallengeScoreInterval;
+            nextMixedPieceScore = MixedPieceScoreInterval;
             pendingClearIndices.Clear();
             Array.Clear(pendingClearMask, 0, pendingClearMask.Length);
             FlashVisible = true;
@@ -198,7 +201,7 @@ namespace FlowSand.Runtime
         public float GetCurrentDropInterval()
         {
             float interval = InitialDropInterval - ((GetSpeedLevel() - 1) * DropIntervalPerLevel);
-            return Mathf.Max(0.3f, interval); // 无论等级多高，正常重力下落的最快速度绝不会快于 0.3 秒/格
+            return Mathf.Max(0.2f, interval); // 无论等级多高，正常重力下落的最快速度绝不会快于 0.2 秒/格
         }
 
         public int GetSpeedLevel()
@@ -301,11 +304,23 @@ namespace FlowSand.Runtime
                 Score += clearedCellEquivalents * ScorePerCoarseCell * Combo;
                 resolvingPieceScored = true;
                 events |= GameplayEvent.BoardChanged | GameplayEvent.HudChanged | GameplayEvent.Cleared;
+                bool superMixedQueued = false;
                 if (Score >= nextColorChallengeScore)
                 {
                     board.QueueSuperMixedPiece(random);
                     nextColorChallengeScore = ((Score / ColorChallengeScoreInterval) + 1) * ColorChallengeScoreInterval;
                     events |= GameplayEvent.NextChanged | GameplayEvent.ColorChallenge;
+                    superMixedQueued = true;
+                }
+
+                if (Score >= nextMixedPieceScore)
+                {
+                    if (!superMixedQueued)
+                    {
+                        board.QueueMixedPiece(random);
+                        events |= GameplayEvent.NextChanged;
+                    }
+                    nextMixedPieceScore = ((Score / MixedPieceScoreInterval) + 1) * MixedPieceScoreInterval;
                 }
 
                 if (Score > HighScore)

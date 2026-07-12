@@ -1,0 +1,98 @@
+﻿<wxlog>
+  <threadId>#main</threadId>
+  <timestamp>09:56:54:4432</timestamp>
+  <msgtype>MsgWXLogLaunch</msgtype>
+  <content>[The WXLogger is launched!]</content>
+  <stackFrames>
+[CALL STACK][0]: Method:WXTextureTools.Application.Options.OptionsConfig..ctor; File:.0
+[CALL STACK][1]: Method:WXTextureTools.Application.Options.OptionsParser.ConsoleArgsParse; File:.0
+[CALL STACK][2]: Method:WXTextureTools.Application.App..ctor; File:.0
+</stackFrames>
+</wxlog>
+<wxlog>
+  <threadId>#main</threadId>
+  <timestamp>09:56:54:4644</timestamp>
+  <msgtype>MsgMixture</msgtype>
+  <content>string|String[]
+OptionsConfig,-option=fbDecompress
+-classDataPath=/Users/linkunkun/SandRussiaBlock/Packages/com.qq.weixin.minigame/Editor/TextureEditor/classdata.tpk
+-dataDir=/Users/linkunkun/SandRussiaBlock/TextToolDatas
+-sourcePath=/Users/linkunkun/SandRussiaBlock/TextToolDatas/slim/backup.txt
+</content>
+  <stackFrames>
+[CALL STACK][0]: Method:WXTextureTools.Application.Options.OptionsConfig..ctor; File:.0
+[CALL STACK][1]: Method:WXTextureTools.Application.Options.OptionsParser.ConsoleArgsParse; File:.0
+[CALL STACK][2]: Method:WXTextureTools.Application.App..ctor; File:.0
+</stackFrames>
+</wxlog>
+<wxlog>
+  <threadId>#main</threadId>
+  <timestamp>09:56:54:4775</timestamp>
+  <msgtype>MsgMixture</msgtype>
+  <content>string|string
+UnityBridgeHandler - SetDataDir,/Users/linkunkun/SandRussiaBlock/TextToolDatas/temp</content>
+  <stackFrames>
+[CALL STACK][0]: Method:WXTextureTools.Application.UnityBridge.UnityBridgeHandler.SetDataDir; File:.0
+[CALL STACK][1]: Method:WXTextureTools.Application.App..ctor; File:.0
+[CALL STACK][2]: Method:WXTextureTools.Program.Main; File:.0
+</stackFrames>
+</wxlog>
+<wxlog>
+  <threadId>#main</threadId>
+  <timestamp>09:56:54:4860</timestamp>
+  <msgtype>MsgMixture</msgtype>
+  <content>string|string
+BundlePicRecord initFile,/Users/linkunkun/SandRussiaBlock/TextToolDatas/FIRSTBUNDLETEXTURES.json</content>
+  <stackFrames>
+[CALL STACK][0]: Method:WXTextureTools.Application.Record.BundlePicRecord.initFile; File:.0
+[CALL STACK][1]: Method:WXTextureTools.Application.Record.BundlePicRecord..ctor; File:.0
+[CALL STACK][2]: Method:WXTextureTools.Application.AppCmdExec.WXFirstBundleDecompressExec.todo; File:.0
+</stackFrames>
+</wxlog>
+<wxlog>
+  <threadId>#main</threadId>
+  <timestamp>09:56:54:4864</timestamp>
+  <msgtype>MsgMixture</msgtype>
+  <content>string|string
+BundlePicRecord readAllRecord,</content>
+  <stackFrames>
+[CALL STACK][0]: Method:WXTextureTools.Application.Record.BundlePicRecord.readAllRecord; File:.0
+[CALL STACK][1]: Method:WXTextureTools.Application.Record.BundlePicRecord..ctor; File:.0
+[CALL STACK][2]: Method:WXTextureTools.Application.AppCmdExec.WXFirstBundleDecompressExec.todo; File:.0
+</stackFrames>
+</wxlog>
+<wxlog>
+  <threadId>#main</threadId>
+  <timestamp>09:56:54:5063</timestamp>
+  <msgtype>MsgMixture</msgtype>
+  <content>string|string
+WXException,FirstBundleText file [/Users/linkunkun/SandRussiaBlock/TextToolDatas/unpackTemp/temp/unity_default_resources] is not Exists.</content>
+  <stackFrames>
+[CALL STACK][0]: Method:WXTextureTools.Application.lib.WXException..ctor; File:.0
+[CALL STACK][1]: Method:WXTextureTools.Application.Texture.FirstBundleText..ctor; File:.0
+[CALL STACK][2]: Method:WXTextureTools.Application.FirstBundle.FirstBundleHandler.splitText; File:.0
+</stackFrames>
+</wxlog>
+<wxlog>
+  <threadId>#main</threadId>
+  <timestamp>09:56:54:5086</timestamp>
+  <msgtype>MsgException</msgtype>
+  <content>
+Could not find file "/Users/linkunkun/SandRussiaBlock/TextToolDatas/unpackTemp/temp/unity_default_resources"
+  at System.IO.FileStream..ctor (System.String path, System.IO.FileMode mode, System.IO.FileAccess access, System.IO.FileShare share, System.Int32 bufferSize, System.Boolean anonymous, System.IO.FileOptions options) [0x0019e] in &lt;639f91da36ad49e6bfb432501d060fb7&gt;:0 
+  at System.IO.FileStream..ctor (System.String path, System.IO.FileMode mode, System.IO.FileAccess access, System.IO.FileShare share) [0x00000] in &lt;639f91da36ad49e6bfb432501d060fb7&gt;:0 
+  at (wrapper remoting-invoke-with-check) System.IO.FileStream..ctor(string,System.IO.FileMode,System.IO.FileAccess,System.IO.FileShare)
+  at System.IO.File.OpenRead (System.String path) [0x00000] in &lt;639f91da36ad49e6bfb432501d060fb7&gt;:0 
+  at AssetsTools.NET.Extra.AssetsManager.LoadAssetsFile (System.String path, System.Boolean loadDeps) [0x0001a] in &lt;66a46d55242f465988c3e95df57742ca&gt;:0 
+  at WXTextureTools.Application.Texture.FirstBundleText.export (System.String outDir, System.String dstPath, System.String colorSpace, WXTextureTools.Application.Ignore.IgnoreHandler ignore, System.Boolean all) [0x00006] in &lt;a914eca6361540098c9e1e1d3f2cd8f6&gt;:0 
+  at WXTextureTools.Application.FirstBundle.FirstBundleHandler.splitText (System.String assetsOutDir, System.String colorSpace, WXTextureTools.Application.Ignore.IgnoreHandler ignore, System.Boolean all) [0x00041] in &lt;a914eca6361540098c9e1e1d3f2cd8f6&gt;:0 
+  at WXTextureTools.Application.AppCmdExec.WXFirstBundleDecompressExec.todo () [0x0004a] in &lt;a914eca6361540098c9e1e1d3f2cd8f6&gt;:0 
+  at WXTextureTools.Application.AppCmdExec.WXFirstBundleDecompressExec..ctor (WXTextureTools.Application.Options.OptionsConfig config) [0x00013] in &lt;a914eca6361540098c9e1e1d3f2cd8f6&gt;:0 
+  at WXTextureTools.Application.App.process () [0x0026f] in &lt;a914eca6361540098c9e1e1d3f2cd8f6&gt;:0 
+  at WXTextureTools.Application.App..ctor (System.String[] args) [0x0002c] in &lt;a914eca6361540098c9e1e1d3f2cd8f6&gt;:0 
+</content>
+  <stackFrames>
+[CALL STACK][0]: Method:WXTextureTools.Application.App..ctor; File:.0
+[CALL STACK][1]: Method:WXTextureTools.Program.Main; File:.0
+</stackFrames>
+</wxlog>

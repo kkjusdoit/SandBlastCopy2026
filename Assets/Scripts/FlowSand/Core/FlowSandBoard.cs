@@ -512,11 +512,28 @@ namespace FlowSand.Core
             {
                 Kind = TakeTetrominoFromBag(random),
                 Color = TetrominoLibrary.RandomColor(random),
+                IsMixed = true,
+                IsSuperMixed = true,
+                ColorSeed = random.Next(),
+            };
+        }
+
+        public void QueueMixedPiece(System.Random random)
+        {
+            int sizeRoll = random.Next(3);
+            NextPiece = new ActivePiece
+            {
+                Kind = sizeRoll == 0
+                    ? TetrominoKind.Domino
+                    : sizeRoll == 1
+                        ? TetrominoKind.Triomino
+                        : TakeTetrominoFromBag(random),
+                Color = TetrominoLibrary.RandomColor(random),
                 Rotation = 0,
                 Col = 0,
                 Row = 0,
                 IsMixed = true,
-                IsSuperMixed = true,
+                MixedPattern = (MixedColorPattern)random.Next(3),
                 ColorSeed = random.Next(),
             };
         }
