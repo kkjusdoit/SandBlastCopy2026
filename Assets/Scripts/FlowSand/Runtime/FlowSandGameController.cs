@@ -186,6 +186,8 @@ namespace FlowSand.Runtime
             {
                 ApplyGameplayUpdate(match.TriggerColorChallenge(board, random));
             }
+
+            HandleGmShortcuts();
 #endif
             if ((keyboard.GetKeyDown(KeyCode.Return) || keyboard.GetKeyDown(KeyCode.KeypadEnter)) &&
                 !gameOverEffectPlaying &&
@@ -227,6 +229,50 @@ namespace FlowSand.Runtime
             bool keyboardSoftDropHeld = keyboard.GetKey(KeyCode.DownArrow) || keyboard.GetKey(KeyCode.S);
             softDropHeld = uiSoftDropHeld || keyboardSoftDropHeld;
         }
+
+#if UNITY_EDITOR
+        // GM / test shortcuts, editor only. Active during a live match so you can
+        // exercise the obstacle mechanics by hand:
+        //   F9  - scatter another batch of obstacles
+        //   F10 - erode every obstacle one hp (watch red->amber->green->break)
+        //   F11 - clear all obstacles
+        // Current obstacle count is logged after each action.
+        private void HandleGmShortcuts()
+        {
+            if (match.Phase != FlowSandMatchCoordinator.GamePhase.Playing)
+            {
+                return;
+            }
+
+            bool changed = false;
+
+            if (keyboard.GetKeyDown(KeyCode.F9))
+            {
+                int placed = board.SpawnObstacles(InitialObstacleCount, random);
+                Debug.Log($"[GM] Spawned {placed} obstacle block(s); total now {board.CountObstacleBlocks()}.");
+                changed = true;
+            }
+
+            if (keyboard.GetKeyDown(KeyCode.F10))
+            {
+                board.DebugErodeAllObstacles();
+                Debug.Log($"[GM] Eroded all obstacles by 1 hp; total now {board.CountObstacleBlocks()}.");
+                changed = true;
+            }
+
+            if (keyboard.GetKeyDown(KeyCode.F11))
+            {
+                board.DebugClearObstacles();
+                Debug.Log("[GM] Cleared all obstacles.");
+                changed = true;
+            }
+
+            if (changed)
+            {
+                InvalidateAllVisuals();
+            }
+        }
+#endif
 
         private void OnDestroy()
         {

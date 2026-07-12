@@ -736,6 +736,66 @@ namespace FlowSand.Core
             return erosionStamp;
         }
 
+#if UNITY_EDITOR
+        // --- GM / test helpers (editor only) -----------------------------------
+
+        // Number of obstacle blocks currently on the board (grains / GrainScale^2,
+        // rounded up). Handy for asserting spawn/erosion in the editor console.
+        public int CountObstacleBlocks()
+        {
+            int grains = 0;
+            for (int i = 0; i < materialGrid.Length; i++)
+            {
+                if (materialGrid[i] == SandMaterial.Obstacle)
+                {
+                    grains += 1;
+                }
+            }
+
+            int perBlock = GrainScale * GrainScale;
+            return (grains + perBlock - 1) / perBlock;
+        }
+
+        // Knock one hp off every obstacle grain at once (ignores adjacency and the
+        // per-event dedup). Lets you watch the full red->amber->green->break cycle
+        // without setting up real clears next to each obstacle.
+        public void DebugErodeAllObstacles()
+        {
+            for (int i = 0; i < materialGrid.Length; i++)
+            {
+                if (materialGrid[i] != SandMaterial.Obstacle)
+                {
+                    continue;
+                }
+
+                if (auxGrid[i] > 1)
+                {
+                    auxGrid[i] -= 1;
+                }
+                else
+                {
+                    materialGrid[i] = SandMaterial.Normal;
+                    auxGrid[i] = 0;
+                    sandGrid[i] = CellColor.Empty;
+                }
+            }
+        }
+
+        // Remove every obstacle from the board (turns them into empty space).
+        public void DebugClearObstacles()
+        {
+            for (int i = 0; i < materialGrid.Length; i++)
+            {
+                if (materialGrid[i] == SandMaterial.Obstacle)
+                {
+                    materialGrid[i] = SandMaterial.Normal;
+                    auxGrid[i] = 0;
+                    sandGrid[i] = CellColor.Empty;
+                }
+            }
+        }
+#endif
+
         public bool Collides(int col, int row, TetrominoKind kind, int rotation)
         {
             Vector2Int[] cells = TetrominoLibrary.GetCells(kind, rotation);
