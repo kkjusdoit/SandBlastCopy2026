@@ -24,6 +24,14 @@ namespace FlowSand.Core
         L,
         Domino,
         Mono,
+        Triomino,
+    }
+
+    public enum MixedColorPattern : byte
+    {
+        LeftRight,
+        CenterSymmetric,
+        PerCell,
     }
 
     [Serializable]
@@ -34,6 +42,10 @@ namespace FlowSand.Core
         public int Rotation;
         public int Col;
         public int Row;
+        public bool IsMixed;
+        public bool IsSuperMixed;
+        public MixedColorPattern MixedPattern;
+        public int ColorSeed;
     }
 
     public readonly struct TetrominoDefinition
@@ -151,6 +163,15 @@ namespace FlowSand.Core
                         Cells((0, 0)),
                         Cells((0, 0)),
                     }),
+                new TetrominoDefinition(
+                    TetrominoKind.Triomino,
+                    new[]
+                    {
+                        Cells((0, 0), (1, 0), (2, 0)),
+                        Cells((0, 0), (0, 1), (0, 2)),
+                        Cells((0, 0), (1, 0), (2, 0)),
+                        Cells((0, 0), (0, 1), (0, 2)),
+                    }),
         };
 
         private static readonly CellColor[] Palette = { CellColor.Coral, CellColor.Mint, CellColor.Gold, CellColor.Sky, CellColor.Violet };
@@ -199,6 +220,85 @@ namespace FlowSand.Core
         public static CellColor RandomColor(System.Random random)
         {
             return Palette[random.Next(Palette.Length)];
+        }
+
+        public static CellColor GetPieceGrainColor(ActivePiece piece, int cellIndex, int x, int y, int cellScale)
+        {
+            if (!piece.IsMixed)
+            {
+                return piece.Color;
+            }
+
+            if (piece.IsSuperMixed)
+            {
+                int excludedColor = piece.ColorSeed % Palette.Length;
+                int phase = (piece.ColorSeed / Palette.Length) & 3;
+                int slot = (phase + (cellIndex * cellScale * cellScale) + (y * cellScale) + x) & 3;
+                int paletteIndex = slot >= excludedColor ? slot + 1 : slot;
+                return Palette[paletteIndex];
+            }
+
+            if (piece.MixedPattern == MixedColorPattern.PerCell)
+            {
+                Vector2Int[] pieceCells = GetCells(piece.Kind, piece.Rotation);
+                int[] cellColors = new int[pieceCells.Length];
+                for (int i = 0; i <= cellIndex; i++)
+                {
+                    int candidate = PositiveModulo(piece.ColorSeed + (i * 1103515245), Palette.Length);
+                    for (int attempts = 0; attempts < Palette.Length; attempts++)
+                    {
+                        bool conflicts = false;
+                        for (int previous = 0; previous < i; previous++)
+                        {
+                            Vector2Int delta = pieceCells[i] - pieceCells[previous];
+                            if (Math.Abs(delta.x) + Math.Abs(delta.y) == 1 && cellColors[previous] == candidate)
+                            {
+                                conflicts = true;
+                                break;
+                            }
+                        }
+
+                        if (!conflicts)
+                        {
+                            break;
+                        }
+
+                        candidate = (candidate + 1) % Palette.Length;
+                    }
+
+                    cellColors[i] = candidate;
+                }
+
+                return Palette[cellColors[cellIndex]];
+            }
+
+            int firstColorIndex = PositiveModulo(piece.ColorSeed, Palette.Length);
+            int secondOffset = 1 + ((piece.ColorSeed / Palette.Length) % (Palette.Length - 1));
+            int secondColorIndex = (firstColorIndex + secondOffset) % Palette.Length;
+
+            Vector2Int cell = GetCells(piece.Kind, piece.Rotation)[cellIndex];
+            BoardBounds bounds = GetBounds(piece.Kind, piece.Rotation);
+            int localX = ((cell.x - bounds.MinX) * cellScale) + x;
+            int totalWidth = bounds.Width * cellScale;
+            bool useFirstColor;
+
+            if (piece.MixedPattern == MixedColorPattern.CenterSymmetric)
+            {
+                int outerBandWidth = Math.Max(1, totalWidth / 4);
+                useFirstColor = localX >= outerBandWidth && localX < totalWidth - outerBandWidth;
+            }
+            else
+            {
+                useFirstColor = localX < totalWidth / 2;
+            }
+
+            return Palette[useFirstColor ? firstColorIndex : secondColorIndex];
+        }
+
+        private static int PositiveModulo(int value, int modulus)
+        {
+            int result = value % modulus;
+            return result < 0 ? result + modulus : result;
         }
 
         private static Vector2Int[] Cells(params (int x, int y)[] points)

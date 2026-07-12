@@ -6,11 +6,15 @@ namespace FlowSand.Core
 {
     public sealed class FlowSandBoard
     {
+        private const int MaximumMixedPiecesPerWindow = 3;
         private static readonly int[] RotationKicks = { 0, -1, 1, -2, 2 };
+        private static readonly int[] SpawnOffsetValues = { -2, -1, 0, 1, 2 };
 
         private readonly CellColor[] sandGrid;
         private readonly TetrominoKind[] pieceBag = new TetrominoKind[7];
         private readonly byte[] sizeBag = new byte[10];
+        private readonly bool[] mixedSpawnHistory = new bool[10];
+        private readonly int[] spawnOffsetBag = new int[5];
         private readonly int[] bridgeVisitStamps;
         private readonly int[] bridgeComponent;
         private readonly int[] bridgeStack;
@@ -18,6 +22,10 @@ namespace FlowSand.Core
 
         private int pieceBagIndex;
         private int sizeBagIndex;
+        private int mixedSpawnHistoryIndex;
+        private int mixedSpawnHistoryCount;
+        private int mixedSpawnCount;
+        private int spawnOffsetBagIndex;
         private int bridgeVisitStamp;
         private int sandStepCount;
 
@@ -37,6 +45,10 @@ namespace FlowSand.Core
             bridgeResult = new List<int>(cellCount);
             pieceBagIndex = pieceBag.Length;
             sizeBagIndex = sizeBag.Length;
+            mixedSpawnHistoryIndex = 0;
+            mixedSpawnHistoryCount = 0;
+            mixedSpawnCount = 0;
+            spawnOffsetBagIndex = spawnOffsetBag.Length;
         }
 
         public int CoarseCols { get; }
@@ -48,6 +60,7 @@ namespace FlowSand.Core
         public ActivePiece? CurrentPiece { get; private set; }
         public ActivePiece NextPiece { get; private set; }
         public int BridgeScanCount { get; private set; }
+        public int LastSpawnOffset { get; private set; }
 
         public CellColor GetSand(int x, int y)
         {
@@ -66,6 +79,12 @@ namespace FlowSand.Core
             Array.Fill(sandGrid, CellColor.Empty);
             pieceBagIndex = pieceBag.Length;
             sizeBagIndex = sizeBag.Length;
+            Array.Clear(mixedSpawnHistory, 0, mixedSpawnHistory.Length);
+            mixedSpawnHistoryIndex = 0;
+            mixedSpawnHistoryCount = 0;
+            mixedSpawnCount = 0;
+            spawnOffsetBagIndex = spawnOffsetBag.Length;
+            LastSpawnOffset = 0;
             sandStepCount = 0;
             CurrentPiece = null;
             NextPiece = CreateQueuedPiece(random);
@@ -75,19 +94,49 @@ namespace FlowSand.Core
         {
             ActivePiece next = NextPiece;
             BoardBounds bounds = TetrominoLibrary.GetBounds(next.Kind, next.Rotation);
-
-            next.Col = Mathf.Clamp((CoarseCols - bounds.Width) / 2 - bounds.MinX, -bounds.MinX, CoarseCols - bounds.MaxX - 1);
+            int centeredCol = Mathf.Clamp((CoarseCols - bounds.Width) / 2 - bounds.MinX, -bounds.MinX, CoarseCols - bounds.MaxX - 1);
+            int targetOffset = TakeSpawnOffset(random);
             // Spawn with the lowest occupied row at the visible ceiling. The rest of
             // the piece enters from above instead of reserving empty rows in the board.
             next.Row = CoarseRows - bounds.MinY - 1;
 
+            bool foundSpawn = false;
+            for (int distance = 0; distance <= 4 && !foundSpawn; distance++)
+            {
+                for (int side = -1; side <= 1; side += 2)
+                {
+                    if (distance == 0 && side == 1)
+                    {
+                        continue;
+                    }
+
+                    int candidateOffset = targetOffset + (distance * side);
+                    if (candidateOffset < -2 || candidateOffset > 2)
+                    {
+                        continue;
+                    }
+
+                    int candidateCol = Mathf.Clamp(centeredCol + candidateOffset, -bounds.MinX, CoarseCols - bounds.MaxX - 1);
+                    if (Collides(candidateCol, next.Row, next.Kind, next.Rotation))
+                    {
+                        continue;
+                    }
+
+                    next.Col = candidateCol;
+                    LastSpawnOffset = candidateCol - centeredCol;
+                    foundSpawn = true;
+                    break;
+                }
+            }
+
             NextPiece = CreateQueuedPiece(random);
-            if (Collides(next.Col, next.Row, next.Kind, next.Rotation))
+            if (!foundSpawn)
             {
                 CurrentPiece = null;
                 return false;
             }
 
+            RecordSpawn(next.IsMixed && !next.IsSuperMixed);
             CurrentPiece = next;
             return true;
         }
@@ -191,7 +240,12 @@ namespace FlowSand.Core
                             continue;
                         }
 
-                        sandGrid[ToIndex(sandX, sandY)] = piece.Color;
+                        sandGrid[ToIndex(sandX, sandY)] = TetrominoLibrary.GetPieceGrainColor(
+                            piece,
+                            i,
+                            dx,
+                            dy,
+                            GrainScale);
                     }
                 }
             }
@@ -426,6 +480,47 @@ namespace FlowSand.Core
             return bridgeResult;
         }
 
+        public bool TryQueueMixedPiece(System.Random random)
+        {
+            if (NextPiece.IsMixed || mixedSpawnCount >= MaximumMixedPiecesPerWindow)
+            {
+                return false;
+            }
+
+            int sizeRoll = random.Next(3);
+            NextPiece = new ActivePiece
+            {
+                Kind = sizeRoll == 0
+                    ? TetrominoKind.Domino
+                    : sizeRoll == 1
+                        ? TetrominoKind.Triomino
+                        : TakeTetrominoFromBag(random),
+                Color = TetrominoLibrary.RandomColor(random),
+                Rotation = 0,
+                Col = 0,
+                Row = 0,
+                IsMixed = true,
+                MixedPattern = (MixedColorPattern)random.Next(3),
+                ColorSeed = random.Next(),
+            };
+            return true;
+        }
+
+        public void QueueSuperMixedPiece(System.Random random)
+        {
+            NextPiece = new ActivePiece
+            {
+                Kind = TakeTetrominoFromBag(random),
+                Color = TetrominoLibrary.RandomColor(random),
+                Rotation = 0,
+                Col = 0,
+                Row = 0,
+                IsMixed = true,
+                IsSuperMixed = true,
+                ColorSeed = random.Next(),
+            };
+        }
+
         public void ClearCells(IReadOnlyList<int> indices)
         {
             for (int i = 0; i < indices.Count; i++)
@@ -564,6 +659,46 @@ namespace FlowSand.Core
             }
 
             sizeBagIndex = 0;
+        }
+
+        private int TakeSpawnOffset(System.Random random)
+        {
+            if (spawnOffsetBagIndex >= spawnOffsetBag.Length)
+            {
+                Array.Copy(SpawnOffsetValues, spawnOffsetBag, spawnOffsetBag.Length);
+                for (int i = spawnOffsetBag.Length - 1; i > 0; i--)
+                {
+                    int swapIndex = random.Next(i + 1);
+                    (spawnOffsetBag[i], spawnOffsetBag[swapIndex]) = (spawnOffsetBag[swapIndex], spawnOffsetBag[i]);
+                }
+
+                spawnOffsetBagIndex = 0;
+            }
+
+            return spawnOffsetBag[spawnOffsetBagIndex++];
+        }
+
+        private void RecordSpawn(bool isMixed)
+        {
+            if (mixedSpawnHistoryCount == mixedSpawnHistory.Length)
+            {
+                if (mixedSpawnHistory[mixedSpawnHistoryIndex])
+                {
+                    mixedSpawnCount -= 1;
+                }
+            }
+            else
+            {
+                mixedSpawnHistoryCount += 1;
+            }
+
+            mixedSpawnHistory[mixedSpawnHistoryIndex] = isMixed;
+            if (isMixed)
+            {
+                mixedSpawnCount += 1;
+            }
+
+            mixedSpawnHistoryIndex = (mixedSpawnHistoryIndex + 1) % mixedSpawnHistory.Length;
         }
 
         private void TryVisitNeighbor(int index, CellColor targetColor, int visitStamp, ref int stackCount)

@@ -13,7 +13,7 @@ namespace FlowSand.Runtime
 {
     public sealed class FlowSandRuntimeView
     {
-        private const float BoardAspectRatio = 0.5f;
+        private const float BoardAspectRatio = 0.6f;
         private const string RuntimeFontAssetPath = "Fonts/NotoSansSC-FlowSand SDF";
         private const float DefaultSafePadding = 42f;
         private const float MenuButtonGap = 20f;
@@ -27,6 +27,9 @@ namespace FlowSand.Runtime
         private Button pauseButton;
         private Button overlayButton;
         private Button overlaySecondaryButton;
+        private Button soundButton;
+        private Button vibrationButton;
+        private GameObject settingsRow;
         private TMP_Text titleText, subtitleText, scoreText, bestText, speedText, messageText;
         private GameObject dimmer;
         private OverlayReveal overlayReveal;
@@ -45,7 +48,7 @@ namespace FlowSand.Runtime
             go.AddComponent<InputSystemUIInputModule>();
         }
 
-        public async Awaitable BuildAsync(Action pause, Action overlay, Action overlaySecondary, Action swipeLeft, Action swipeRight, Action leftPress, Action leftRepeat, Action leftRelease, Action rightPress, Action rightRepeat, Action rightRelease, Action rotate, Action dropPress, Action dropRelease, Action hardDrop)
+        public async Awaitable BuildAsync(Action pause, Action overlay, Action overlaySecondary, Action swipeLeft, Action swipeRight, Action swipeDropPress, Action swipeDropRelease, Action leftPress, Action leftRepeat, Action leftRelease, Action rightPress, Action rightRepeat, Action rightRelease, Action rotate, Action dropPress, Action dropRelease, Action hardDrop, Action toggleSound, Action toggleVibration)
         {
             Font sourceFont = Resources.Load<Font>("Fonts/NotoSansSC-FlowSand");
             if (sourceFont == null)
@@ -110,8 +113,8 @@ namespace FlowSand.Runtime
             swipeInput.OnSwipeLeft = swipeLeft;
             swipeInput.OnSwipeRight = swipeRight;
             swipeInput.OnSwipeUp = rotate;
-            swipeInput.OnSwipeDownPress = dropPress;
-            swipeInput.OnSwipeDownRelease = dropRelease;
+            swipeInput.OnSwipeDownPress = swipeDropPress;
+            swipeInput.OnSwipeDownRelease = swipeDropRelease;
 
             TMP_Text comboText = Text("Combo", boardSlot, "", 54, Accent, TextAlignmentOptions.Center, L(.5f, 1, .5f, 1, -260, -400, 260, -310));
             comboText.fontStyle = FontStyles.Bold;
@@ -141,18 +144,21 @@ namespace FlowSand.Runtime
             subtitleText.enableAutoSizing = true;
             subtitleText.fontSizeMin = 26;
             subtitleText.fontSizeMax = 34;
-            messageText = Text("Message", content, "", 34, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 70, -780, -70, -580));
+            messageText = Text("Message", content, "", 34, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 70, -700, -70, -500));
             messageText.enableWordWrapping = true;
             messageText.overflowMode = TextOverflowModes.Overflow;
             messageText.enableAutoSizing = true;
             messageText.fontSizeMin = 28;
             messageText.fontSizeMax = 42;
-            overlayButton = Button("Overlay Button", content, GameTexts.Start, L(.5f, 0, .5f, 0, -210, 60, 210, 172), Accent, Background);
+            settingsRow = Container("Settings", content, L(.5f, 0, .5f, 0, -330, 245, 330, 345)).gameObject;
+            soundButton = SettingButton("Sound", settingsRow.transform, SettingIcon.Sound, L(0, 0, .5f, 1, 0, 0, -10, 0), toggleSound);
+            vibrationButton = SettingButton("Vibration", settingsRow.transform, SettingIcon.Vibration, L(.5f, 0, 1, 1, 10, 0, 0, 0), toggleVibration);
+            overlayButton = Button("Overlay Button", content, GameTexts.Start, L(.5f, 0, .5f, 0, -210, 70, 210, 182), Accent, Background);
             TMP_Text startButtonText = overlayButton.GetComponentInChildren<TMP_Text>();
             startButtonText.fontSize = 40;
             startButtonText.fontStyle = FontStyles.Bold;
             overlayButton.onClick.AddListener(() => overlay());
-            overlaySecondaryButton = Button("Overlay Secondary Button", content, GameTexts.RestartNow, L(.5f, 0, .5f, 0, 12, 60, 312, 172), RaisedSurface, TextColor);
+            overlaySecondaryButton = Button("Overlay Secondary Button", content, GameTexts.RestartNow, L(.5f, 0, .5f, 0, 12, 70, 312, 182), RaisedSurface, TextColor);
             TMP_Text secondaryButtonText = overlaySecondaryButton.GetComponentInChildren<TMP_Text>();
             secondaryButtonText.fontSize = 36;
             secondaryButtonText.fontStyle = FontStyles.Bold;
@@ -171,13 +177,15 @@ namespace FlowSand.Runtime
 
         public void ShowCombo(int combo) => comboPopup.Show(combo);
 
+        public void ShowColorChallenge() => comboPopup.ShowMessage(GameTexts.ColorChallenge, 0.9f);
+
         public void HideCombo() => comboPopup.Hide();
 
         public void ShowControlHint(string message) => controlHintPopup.ShowMessage(message, 3f);
 
         public void HideControlHint() => controlHintPopup.Hide();
 
-        public void SetOverlay(bool visible, string title = null, string subtitle = null, string message = null, string buttonText = null, bool showSecondaryButton = false)
+        public void SetOverlay(bool visible, string title = null, string subtitle = null, string message = null, string buttonText = null, bool showSecondaryButton = false, bool showSettings = false)
         {
             dimmer.SetActive(visible);
             if (title != null) titleText.text = title;
@@ -185,12 +193,19 @@ namespace FlowSand.Runtime
             if (message != null) messageText.text = message;
             if (buttonText != null) overlayButton.GetComponentInChildren<TMP_Text>().text = buttonText;
             overlaySecondaryButton.gameObject.SetActive(visible && showSecondaryButton);
+            settingsRow.SetActive(visible && showSettings);
             Apply(
                 overlayButton.GetComponent<RectTransform>(),
                 showSecondaryButton
-                    ? L(.5f, 0, .5f, 0, -312, 60, -12, 172)
-                    : L(.5f, 0, .5f, 0, -210, 60, 210, 172));
+                    ? L(.5f, 0, .5f, 0, -312, 70, -12, 182)
+                    : L(.5f, 0, .5f, 0, -210, 70, 210, 182));
             if (visible) overlayReveal.Show(); else overlayReveal.Hide();
+        }
+
+        public void SetSettings(bool soundEnabled, bool vibrationEnabled)
+        {
+            SetSettingState(soundButton, soundEnabled);
+            SetSettingState(vibrationButton, vibrationEnabled);
         }
 
         public void SetPauseButton(bool visible, string label = GameTexts.Pause)
@@ -269,6 +284,24 @@ namespace FlowSand.Runtime
             image.color = TextColor;
             return button;
         }
+        private Button SettingButton(string name, Transform parent, SettingIcon icon, Layout layout, Action onClick)
+        {
+            Button button = Button(name, parent, GameTexts.On, layout, RaisedSurface, TextColor);
+            TMP_Text label = button.GetComponentInChildren<TMP_Text>();
+            Apply(label.rectTransform, L(0, 0, 1, 1, 92, 0, -18, 0));
+            label.fontSize = 30;
+            RawImage image = RawImage("Icon", button.transform, L(0, .5f, 0, .5f, 22, -28, 78, 28));
+            image.texture = CreateSettingIcon(icon);
+            image.color = TextColor;
+            button.onClick.AddListener(() => onClick());
+            return button;
+        }
+        private static void SetSettingState(Button button, bool enabled)
+        {
+            button.GetComponent<Image>().color = enabled ? Hex("174766") : RaisedSurface;
+            button.GetComponentInChildren<TMP_Text>().text = enabled ? GameTexts.On : GameTexts.Off;
+            button.transform.Find("Icon").GetComponent<RawImage>().color = enabled ? Accent : Muted;
+        }
         private static Texture2D CreateControlIcon(ControlIcon icon)
         {
             const int size = 64;
@@ -307,12 +340,53 @@ namespace FlowSand.Runtime
             texture.Apply(false, true);
             return texture;
         }
+        private static Texture2D CreateSettingIcon(SettingIcon icon)
+        {
+            const int size = 64;
+            Texture2D texture = new(size, size, TextureFormat.RGBA32, false)
+            {
+                filterMode = FilterMode.Bilinear,
+                wrapMode = TextureWrapMode.Clamp,
+                hideFlags = HideFlags.HideAndDontSave
+            };
+            Color32[] pixels = new Color32[size * size];
+            Color32 white = new(255, 255, 255, 255);
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    bool filled;
+                    if (icon == SettingIcon.Sound)
+                    {
+                        bool speaker = (x >= 12 && x <= 24 && y >= 24 && y <= 40) ||
+                                       (x >= 24 && x <= 36 && Mathf.Abs(y - 32) <= 18 - ((x - 24) / 2));
+                        float dx = x - 34f;
+                        float dy = y - 32f;
+                        float radius = Mathf.Sqrt((dx * dx) + (dy * dy));
+                        bool waves = x >= 38 && ((radius >= 11 && radius <= 14) || (radius >= 20 && radius <= 23));
+                        filled = speaker || waves;
+                    }
+                    else
+                    {
+                        bool phone = ((x >= 20 && x <= 44) && (y == 10 || y == 53)) ||
+                                     ((y >= 10 && y <= 53) && (x == 20 || x == 44));
+                        bool waves = (x >= 10 && x <= 15 || x >= 49 && x <= 54) && y >= 21 && y <= 42 && ((x + y) % 4 < 2);
+                        filled = phone || waves;
+                    }
+                    if (filled) pixels[(y * size) + x] = white;
+                }
+            }
+            texture.SetPixels32(pixels);
+            texture.Apply(false, true);
+            return texture;
+        }
         private static void Hold(Button button, Action press, Action repeat, Action release) { HoldButton hold = button.gameObject.AddComponent<HoldButton>(); hold.OnPressed = press; hold.OnRepeated = repeat; hold.OnReleased = release; }
         private static void Apply(RectTransform rect, Layout layout) { rect.anchorMin = layout.Min; rect.anchorMax = layout.Max; rect.offsetMin = layout.OffsetMin; rect.offsetMax = layout.OffsetMax; }
         private static Layout Stretch(Vector2? min = null, Vector2? max = null) => new(Vector2.zero, Vector2.one, min ?? Vector2.zero, max ?? Vector2.zero);
         private static Layout L(float minX, float minY, float maxX, float maxY, float left, float bottom, float right, float top) => new(new Vector2(minX, minY), new Vector2(maxX, maxY), new Vector2(left, bottom), new Vector2(right, top));
         private static Color Hex(string hex) { ColorUtility.TryParseHtmlString("#" + hex, out Color color); return color; }
         private enum ControlIcon { Left, Right, Rotate }
+        private enum SettingIcon { Sound, Vibration }
         private readonly struct Layout { public Layout(Vector2 min, Vector2 max, Vector2 offsetMin, Vector2 offsetMax) { Min = min; Max = max; OffsetMin = offsetMin; OffsetMax = offsetMax; } public Vector2 Min { get; } public Vector2 Max { get; } public Vector2 OffsetMin { get; } public Vector2 OffsetMax { get; } }
     }
 }

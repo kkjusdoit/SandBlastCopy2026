@@ -32,6 +32,15 @@ namespace FlowSand.Audio
         public void PlayStart() => Play("start");
         public void PlayGameOver() => Play("gameover");
 
+        public void SetEnabled(bool enabled)
+        {
+            audioSource.mute = !enabled;
+            if (!enabled)
+            {
+                audioSource.Stop();
+            }
+        }
+
         private void Play(string key)
         {
             if (clips.TryGetValue(key, out AudioClip clip))

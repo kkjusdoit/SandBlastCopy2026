@@ -24,7 +24,7 @@ public class FlowSandMatchCoordinatorTests
 
         match.UpdateGameplay(board, random, 300f, false);
         Assert.That(match.GetSpeedLevel(), Is.EqualTo(10));
-        Assert.That(match.GetCurrentDropInterval(), Is.EqualTo(0.295f).Within(0.001f));
+        Assert.That(match.GetCurrentDropInterval(), Is.EqualTo(0.3f).Within(0.001f));
     }
 
     [Test]
@@ -81,9 +81,9 @@ public class FlowSandMatchCoordinatorTests
             Row = 1,
         });
         match.StartMatch();
-        SetPrivateField(match, "pieceFallTimer", 0.69f);
+        SetPrivateField(match, "pieceFallTimer", match.GetCurrentDropInterval());
 
-        GameplayUpdate updateBeforeSandStep = match.UpdateGameplay(board, random, 0.01f, false);
+        GameplayUpdate updateBeforeSandStep = match.UpdateGameplay(board, random, 0f, false);
 
         Assert.That(board.HasActivePiece, Is.False);
         Assert.That(board.FindBridgeClearCells().Count, Is.EqualTo(4));
@@ -163,6 +163,58 @@ public class FlowSandMatchCoordinatorTests
         QueueClear(match, board, 0, 8);
         match.UpdateGameplay(board, random, 0.01f, false);
         Assert.That(match.Score, Is.EqualTo(5));
+    }
+
+    [Test]
+    public void SecondUnattendedScoringRoundQueuesMixedPiece()
+    {
+        FlowSandMatchCoordinator match = new(0);
+        FlowSandBoard board = new(12, 20, 1);
+        System.Random random = new(5);
+        board.Reset(random);
+        match.StartMatch();
+
+        SetPrivateField(match, "resolvingPieceRound", true);
+        SetPrivateField(match, "resolvingPieceScored", true);
+        SetPrivateField(match, "currentPieceHadStructuralInput", false);
+        SetPrivateField(match, "bridgeCheckPending", true);
+        match.UpdateGameplay(board, random, 0.01f, false);
+        Assert.That(board.NextPiece.IsMixed, Is.False);
+
+        SetPrivateField(match, "resolvingPieceRound", true);
+        SetPrivateField(match, "resolvingPieceScored", true);
+        SetPrivateField(match, "currentPieceHadStructuralInput", false);
+        SetPrivateField(match, "bridgeCheckPending", true);
+        GameplayUpdate update = match.UpdateGameplay(board, random, 0.01f, false);
+
+        Assert.That(board.NextPiece.IsMixed, Is.True);
+        Assert.That(update.NextChanged, Is.True);
+        Assert.That(
+            board.NextPiece.Kind,
+            Is.EqualTo(TetrominoKind.Domino).Or.EqualTo(TetrominoKind.Triomino));
+    }
+
+    [Test]
+    public void HorizontalOrRotationInputResetsUnattendedScoringRounds()
+    {
+        FlowSandMatchCoordinator match = new(0);
+        FlowSandBoard board = new(12, 20, 1);
+        System.Random random = new(5);
+        board.Reset(random);
+        match.StartMatch();
+
+        SetPrivateField(match, "resolvingPieceRound", true);
+        SetPrivateField(match, "resolvingPieceScored", true);
+        SetPrivateField(match, "currentPieceHadStructuralInput", false);
+        SetPrivateField(match, "bridgeCheckPending", true);
+        match.UpdateGameplay(board, random, 0.01f, false);
+        match.RegisterHorizontalOrRotationInput();
+        SetPrivateField(match, "resolvingPieceRound", true);
+        SetPrivateField(match, "resolvingPieceScored", true);
+        SetPrivateField(match, "bridgeCheckPending", true);
+        match.UpdateGameplay(board, random, 0.01f, false);
+
+        Assert.That(board.NextPiece.IsMixed, Is.False);
     }
 
     private static void SetBridge(FlowSandBoard board, int y, CellColor color)

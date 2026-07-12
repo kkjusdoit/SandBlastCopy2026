@@ -115,8 +115,6 @@ namespace FlowSand.Runtime
             BoardBounds bounds = TetrominoLibrary.GetBounds(next.Kind, 0);
             int offsetX = ((width - 2) - (bounds.Width * 6)) / 2 - (bounds.MinX * 6);
             int offsetY = ((height - 2) - (bounds.Height * 6)) / 2 - (bounds.MinY * 6);
-            Color32 color = palette[(int)next.Color];
-
             for (int i = 0; i < cells.Length; i++)
             {
                 for (int dx = 0; dx < 6; dx++)
@@ -130,7 +128,8 @@ namespace FlowSand.Runtime
                             continue;
                         }
 
-                        nextPixels[(py * width) + px] = color;
+                        CellColor grainColor = TetrominoLibrary.GetPieceGrainColor(next, i, dx, dy, 6);
+                        nextPixels[(py * width) + px] = palette[(int)grainColor];
                     }
                 }
             }
@@ -147,8 +146,6 @@ namespace FlowSand.Runtime
         private void DrawActivePiece(ActivePiece piece)
         {
             Vector2Int[] cells = TetrominoLibrary.GetCells(piece.Kind, piece.Rotation);
-            Color32 pieceColor = palette[(int)piece.Color];
-
             for (int i = 0; i < cells.Length; i++)
             {
                 Vector2Int cell = cells[i];
@@ -164,6 +161,13 @@ namespace FlowSand.Runtime
                             continue;
                         }
 
+                        CellColor grainColor = TetrominoLibrary.GetPieceGrainColor(
+                            piece,
+                            i,
+                            dx,
+                            dy,
+                            board.GrainScale);
+                        Color32 pieceColor = palette[(int)grainColor];
                         byte shadeBoost = (byte)(((dx + dy) % 3) * 5);
                         Color32 shaded = new(
                             (byte)Mathf.Clamp(pieceColor.r + shadeBoost, 0, 255),

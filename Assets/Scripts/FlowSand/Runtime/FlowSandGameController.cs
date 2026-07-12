@@ -10,10 +10,12 @@ namespace FlowSand.Runtime
 {
     public sealed class FlowSandGameController : MonoBehaviour
     {
-        private const int CoarseCols = 10;
+        private const int CoarseCols = 12;
         private const int CoarseRows = 20;
         private const int GrainScale = 16;
         private const string HighScoreKey = "FlowSand.HighScore.CellEquivalentV2";
+        private const string SoundEnabledKey = "FlowSand.SoundEnabled";
+        private const string VibrationEnabledKey = "FlowSand.VibrationEnabled";
         private const float GameOverRowInterval = 0.05f;
         private const float MaximumGameplayDeltaTime = 0.1f;
         private const int ControlHintUseThreshold = 8;
@@ -49,6 +51,8 @@ namespace FlowSand.Runtime
         private int lockedButtonDirection;
         private int bottomControlUseCount;
         private bool controlHintShown;
+        private bool soundEnabled;
+        private bool vibrationEnabled;
 #if UNITY_WEBGL && !UNITY_EDITOR
         private Action<GeneralCallbackResult> onWechatHide;
         private Action<OnShowListenerResult> onWechatShow;
@@ -61,6 +65,8 @@ namespace FlowSand.Runtime
             random = new System.Random();
             board = new FlowSandBoard(CoarseCols, CoarseRows, GrainScale);
             match = new FlowSandMatchCoordinator(PlayerPrefs.GetInt(HighScoreKey, 0));
+            soundEnabled = PlayerPrefs.GetInt(SoundEnabledKey, 1) != 0;
+            vibrationEnabled = PlayerPrefs.GetInt(VibrationEnabledKey, 1) != 0;
 
             FlowSandRuntimeView.EnsureEventSystem();
             ConfigureCamera();
@@ -71,6 +77,8 @@ namespace FlowSand.Runtime
                 RestartFromPause,
                 () => TryMove(-1),
                 () => TryMove(1),
+                BeginSoftDrop,
+                () => uiSoftDropHeld = false,
                 () => BeginButtonMove(-1),
                 () => RepeatButtonMove(-1),
                 () => EndButtonMove(-1),
@@ -80,9 +88,13 @@ namespace FlowSand.Runtime
                 OnRotateButtonPressed,
                 OnDropButtonPressed,
                 () => uiSoftDropHeld = false,
-                TryHardDrop);
+                TryHardDrop,
+                ToggleSound,
+                ToggleVibration);
 
             sfxPlayer = gameObject.AddComponent<FlowSandSfxPlayer>();
+            sfxPlayer.SetEnabled(soundEnabled);
+            view.SetSettings(soundEnabled, vibrationEnabled);
             boardRenderer = new FlowSandBoardRenderer(board, view.BoardImage, view.NextImage, palette, backgroundColor, borderColor);
 
             ShowTitleScreen();
@@ -121,11 +133,10 @@ namespace FlowSand.Runtime
         {
             boardVisualDirty |= update.BoardChanged;
             hudVisualDirty |= update.HudChanged;
+            nextVisualDirty |= update.NextChanged;
 
             if (update.PieceLocked)
             {
-                softDropHeld = false;
-                uiSoftDropHeld = false;
                 lockedButtonDirection = 0;
                 sfxPlayer.PlayLock();
             }
@@ -138,6 +149,11 @@ namespace FlowSand.Runtime
                 {
                     view.ShowCombo(match.Combo);
                 }
+            }
+
+            if (update.ColorChallenge)
+            {
+                view.ShowColorChallenge();
             }
 
             if (update.HighScoreChanged)
@@ -161,6 +177,12 @@ namespace FlowSand.Runtime
 
         private void HandleKeyboardShortcuts()
         {
+#if UNITY_EDITOR
+            if (keyboard.GetKeyDown(KeyCode.F8) && match.Phase == FlowSandMatchCoordinator.GamePhase.Playing)
+            {
+                ApplyGameplayUpdate(match.TriggerColorChallenge(board, random));
+            }
+#endif
             if ((keyboard.GetKeyDown(KeyCode.Return) || keyboard.GetKeyDown(KeyCode.KeypadEnter)) &&
                 !gameOverEffectPlaying &&
                 (match.Phase is FlowSandMatchCoordinator.GamePhase.Title or FlowSandMatchCoordinator.GamePhase.GameOver))
@@ -242,6 +264,7 @@ namespace FlowSand.Runtime
                 GameTexts.PausedSubtitle,
                 GameTexts.PausedInstructions,
                 GameTexts.Resume,
+                true,
                 true);
             view.SetPauseButton(true, GameTexts.Resume);
         }
@@ -299,6 +322,7 @@ namespace FlowSand.Runtime
 
             if (board.SpawnNextPiece(random))
             {
+                match.RegisterPieceSpawned(board);
                 boardVisualDirty = true;
                 nextVisualDirty = true;
                 return;
@@ -360,6 +384,7 @@ namespace FlowSand.Runtime
                     GameTexts.PausedSubtitle,
                     GameTexts.PausedInstructions,
                     GameTexts.Resume,
+                    true,
                     true);
                 view.SetPauseButton(true, GameTexts.Resume);
                 return;
@@ -379,6 +404,7 @@ namespace FlowSand.Runtime
 
             if (board.TryMoveHorizontal(delta))
             {
+                match.RegisterHorizontalOrRotationInput();
                 sfxPlayer.PlayMove();
                 boardVisualDirty = true;
             }
@@ -450,6 +476,7 @@ namespace FlowSand.Runtime
 
             if (board.TryRotate())
             {
+                match.RegisterHorizontalOrRotationInput();
                 sfxPlayer.PlayRotate();
                 boardVisualDirty = true;
             }
@@ -490,7 +517,9 @@ namespace FlowSand.Runtime
                 GameTexts.GameName,
                 GameTexts.StartSubtitle,
                 GameTexts.StartInstructions,
-                GameTexts.Start);
+                GameTexts.Start,
+                false,
+                true);
         }
 
         private void InvalidateAllVisuals()
@@ -563,8 +592,33 @@ namespace FlowSand.Runtime
             PlayerPrefs.Save();
         }
 
-        private static void VibrateOnClear()
+        private void ToggleSound()
         {
+            soundEnabled = !soundEnabled;
+            sfxPlayer.SetEnabled(soundEnabled);
+            SaveSetting(SoundEnabledKey, soundEnabled);
+            view.SetSettings(soundEnabled, vibrationEnabled);
+        }
+
+        private void ToggleVibration()
+        {
+            vibrationEnabled = !vibrationEnabled;
+            SaveSetting(VibrationEnabledKey, vibrationEnabled);
+            view.SetSettings(soundEnabled, vibrationEnabled);
+        }
+
+        private static void SaveSetting(string key, bool enabled)
+        {
+            PlayerPrefs.SetInt(key, enabled ? 1 : 0);
+            PlayerPrefs.Save();
+        }
+
+        private void VibrateOnClear()
+        {
+            if (!vibrationEnabled)
+            {
+                return;
+            }
 #if UNITY_WEBGL && !UNITY_EDITOR
             WX.VibrateShort(new VibrateShortOption
             {

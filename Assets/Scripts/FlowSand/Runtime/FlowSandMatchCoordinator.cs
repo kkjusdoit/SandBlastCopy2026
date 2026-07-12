@@ -13,6 +13,8 @@ namespace FlowSand.Runtime
         private const int PieceLockedFlag = 1 << 3;
         private const int ClearedFlag = 1 << 4;
         private const int HighScoreChangedFlag = 1 << 5;
+        private const int NextChangedFlag = 1 << 6;
+        private const int ColorChallengeFlag = 1 << 7;
 
         internal GameplayUpdate(int flags)
         {
@@ -26,6 +28,8 @@ namespace FlowSand.Runtime
         public bool PieceLocked => (Flags & PieceLockedFlag) != 0;
         public bool Cleared => (Flags & ClearedFlag) != 0;
         public bool HighScoreChanged => (Flags & HighScoreChangedFlag) != 0;
+        public bool NextChanged => (Flags & NextChangedFlag) != 0;
+        public bool ColorChallenge => (Flags & ColorChallengeFlag) != 0;
     }
 
     public sealed class FlowSandMatchCoordinator
@@ -37,6 +41,7 @@ namespace FlowSand.Runtime
         private const float SandStepInterval = 0.004f;
         private const int MaximumSandStepsPerFrame = 8;
         private const int ScorePerCoarseCell = 1;
+        private const int ColorChallengeScoreInterval = 200;
 
         private readonly List<int> pendingClearIndices = new();
         private bool[] pendingClearMask = Array.Empty<bool>();
@@ -46,6 +51,11 @@ namespace FlowSand.Runtime
         private float clearTimer;
         private bool waitingForSandToSettle;
         private bool bridgeCheckPending;
+        private bool currentPieceHadStructuralInput;
+        private bool resolvingPieceRound;
+        private bool resolvingPieceScored;
+        private int consecutiveUnattendedScoringRounds;
+        private int nextColorChallengeScore;
 
         public FlowSandMatchCoordinator(int highScore)
         {
@@ -79,6 +89,11 @@ namespace FlowSand.Runtime
             clearTimer = 0f;
             waitingForSandToSettle = false;
             bridgeCheckPending = true;
+            currentPieceHadStructuralInput = false;
+            resolvingPieceRound = false;
+            resolvingPieceScored = false;
+            consecutiveUnattendedScoringRounds = 0;
+            nextColorChallengeScore = ColorChallengeScoreInterval;
             pendingClearIndices.Clear();
             Array.Clear(pendingClearMask, 0, pendingClearMask.Length);
             FlashVisible = true;
@@ -117,7 +132,7 @@ namespace FlowSand.Runtime
 
             UpdatePieceFall(board, deltaTime, softDropHeld, ref events);
             UpdateSand(board, random, deltaTime, ref events);
-            UpdateClears(board, deltaTime, ref events);
+            UpdateClears(board, random, deltaTime, ref events);
 
             if (!board.HasActivePiece && !HasPendingClear && !waitingForSandToSettle)
             {
@@ -141,6 +156,7 @@ namespace FlowSand.Runtime
             }
 
             board.LockCurrentPiece();
+            BeginPieceResolution();
             waitingForSandToSettle = true;
             bridgeCheckPending = false;
             Combo = 0;
@@ -153,6 +169,30 @@ namespace FlowSand.Runtime
             }
 
             return new GameplayUpdate((int)events);
+        }
+
+        public void RegisterHorizontalOrRotationInput()
+        {
+            currentPieceHadStructuralInput = true;
+        }
+
+        public void RegisterPieceSpawned(FlowSandBoard board)
+        {
+            currentPieceHadStructuralInput = false;
+#if UNITY_EDITOR
+            Debug.Log($"[FlowSand Debug] Spawn offset={board.LastSpawnOffset}, unattended score streak={consecutiveUnattendedScoringRounds}");
+#endif
+        }
+
+        public GameplayUpdate TriggerColorChallenge(FlowSandBoard board, System.Random random)
+        {
+            if (Phase != GamePhase.Playing)
+            {
+                return default;
+            }
+
+            board.QueueSuperMixedPiece(random);
+            return new GameplayUpdate((int)(GameplayEvent.NextChanged | GameplayEvent.ColorChallenge));
         }
 
         public float GetCurrentDropInterval()
@@ -190,6 +230,7 @@ namespace FlowSand.Runtime
                 }
 
                 board.LockCurrentPiece();
+                BeginPieceResolution();
                 waitingForSandToSettle = true;
                 bridgeCheckPending = false;
                 Combo = 0;
@@ -231,7 +272,7 @@ namespace FlowSand.Runtime
             }
         }
 
-        private void UpdateClears(FlowSandBoard board, float deltaTime, ref GameplayEvent events)
+        private void UpdateClears(FlowSandBoard board, System.Random random, float deltaTime, ref GameplayEvent events)
         {
             if (HasPendingClear)
             {
@@ -258,7 +299,15 @@ namespace FlowSand.Runtime
                 int grainsPerCoarseCell = board.GrainScale * board.GrainScale;
                 int clearedCellEquivalents = Mathf.Max(1, cleared / grainsPerCoarseCell);
                 Score += clearedCellEquivalents * ScorePerCoarseCell * Combo;
+                resolvingPieceScored = true;
                 events |= GameplayEvent.BoardChanged | GameplayEvent.HudChanged | GameplayEvent.Cleared;
+                if (Score >= nextColorChallengeScore)
+                {
+                    board.QueueSuperMixedPiece(random);
+                    nextColorChallengeScore = ((Score / ColorChallengeScoreInterval) + 1) * ColorChallengeScoreInterval;
+                    events |= GameplayEvent.NextChanged | GameplayEvent.ColorChallenge;
+                }
+
                 if (Score > HighScore)
                 {
                     HighScore = Score;
@@ -285,6 +334,7 @@ namespace FlowSand.Runtime
             IReadOnlyList<int> clearCells = board.FindBridgeClearCells();
             if (clearCells.Count == 0)
             {
+                FinalizePieceResolution(board, random, ref events);
                 SetFlashVisible(true, ref events);
                 return;
             }
@@ -301,6 +351,45 @@ namespace FlowSand.Runtime
             clearTimer = 0.28f;
             SetFlashVisible(true, ref events);
             events |= GameplayEvent.BoardChanged;
+        }
+
+        private void BeginPieceResolution()
+        {
+            resolvingPieceRound = true;
+            resolvingPieceScored = false;
+        }
+
+        private void FinalizePieceResolution(FlowSandBoard board, System.Random random, ref GameplayEvent events)
+        {
+            if (!resolvingPieceRound)
+            {
+                return;
+            }
+
+            if (resolvingPieceScored && !currentPieceHadStructuralInput)
+            {
+                consecutiveUnattendedScoringRounds += 1;
+            }
+            else
+            {
+                consecutiveUnattendedScoringRounds = 0;
+            }
+
+#if UNITY_EDITOR
+            Debug.Log($"[FlowSand Debug] Round input={currentPieceHadStructuralInput}, scored={resolvingPieceScored}, unattended score streak={consecutiveUnattendedScoringRounds}");
+#endif
+            if (consecutiveUnattendedScoringRounds >= 2)
+            {
+                if (board.TryQueueMixedPiece(random))
+                {
+                    events |= GameplayEvent.NextChanged;
+                }
+
+                consecutiveUnattendedScoringRounds = 0;
+            }
+
+            resolvingPieceRound = false;
+            resolvingPieceScored = false;
         }
 
         private void EnsurePendingMaskCapacity(int cellCount)
@@ -348,6 +437,8 @@ namespace FlowSand.Runtime
             PieceLocked = 1 << 3,
             Cleared = 1 << 4,
             HighScoreChanged = 1 << 5,
+            NextChanged = 1 << 6,
+            ColorChallenge = 1 << 7,
         }
     }
 }
