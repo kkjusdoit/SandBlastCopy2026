@@ -99,8 +99,10 @@ namespace FlowSand.UI
                 }
                 else
                 {
-                    // DOWN (Soft Drop) requires dragging the knob downwards and a clear vertical bias
-                    if (Mathf.Abs(offset.y) >= verticalThreshold && Mathf.Abs(offset.y) > Mathf.Abs(offset.x) * 1.2f)
+                    // DOWN (Soft Drop) requires a much larger distance threshold and very steep downward swipe angle
+                    // to prevent accidental acceleration triggers during left/right sliding.
+                    float downThreshold = DeadZoneDistance() * 2.2f;
+                    if (Mathf.Abs(offset.y) >= downThreshold && Mathf.Abs(offset.y) > Mathf.Abs(offset.x) * 1.8f)
                     {
                         targetDirection = 4;
                     }
@@ -124,7 +126,7 @@ namespace FlowSand.UI
                 else TriggerAction(targetDirection);
 
                 currentDirection = targetDirection;
-                nextTriggerTime = Time.time + 0.25f; // Initial DAS delay (250ms)
+                nextTriggerTime = Time.time + 0.35f; // Slower initial DAS delay (350ms) to make swipes more deliberate
             }
             else
             {
@@ -134,7 +136,7 @@ namespace FlowSand.UI
                     if (Time.time >= nextTriggerTime)
                     {
                         TriggerAction(currentDirection);
-                        nextTriggerTime = Time.time + 0.12f; // Auto-repeat interval ARR (120ms)
+                        nextTriggerTime = Time.time + 0.16f; // Slower auto-repeat interval ARR (160ms) for better precision
                     }
                 }
             }
