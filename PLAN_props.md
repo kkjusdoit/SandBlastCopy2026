@@ -46,14 +46,16 @@ Commit `2c9409c`。玩法零感知。
 
 ---
 
-## 阶段 1 — 障碍块 + 磨损 ⏳ 待开工（已拍板）
-拍板：**障碍先行** + **hp 颜色色阶**（3红→2黄→1绿→碎裂）。
+## 阶段 1 — 障碍块 + 磨损 ✅ 已完成
+Commit `1981a60`。拍板：障碍先行 + hp 颜色色阶（3红→2黄→1绿）。
 - `material=Obstacle` 占整块 `16×16` 细格；`BlocksFlow=true`、`CanMatch=false`
-- `auxGrid` 存 hp（默认 3）
-- 新增 `SpawnObstacles(count, region)`：开局/定时在中部随机撒
-- **磨损**：`FindBridgeClearCells` 得到消除组后，遍历消除格 4 邻域，命中 Obstacle 则 `auxGrid--`；归零→变空格。**只在消除事件跑，不进 StepSand**
-- 渲染：`FlowSandBoardRenderer.GetGrainColor` 加障碍分支，读 `GetMaterialByIndex`/`GetAuxByIndex`，hp→色阶
-- 验收：障碍挡沙分流；临近消除逐级磨损；归零消失；不会永久堵死
+- `auxGrid` 存 **per-grain hp**（默认 `ObstacleMaxHp=3`）→ 障碍从边缘被侵蚀、逐渐让出通道，天然防死锁
+- `SpawnObstacles(count, random)`：开局在中下部 band（粗行 1/5~3/5）随机撒，只落在完全空闲的粗格；`InitialObstacleCount=4`（`FlowSandGameController.cs`）
+- **磨损** `ErodeObstaclesAround(clearedIndices)`：消除事件里，对消除格 4 邻域的 Obstacle 扣 1 hp；单次事件对同一粒最多扣 1（`erosionStamps` 去重）；hp 归零→变空格。**只在消除事件跑，不进 StepSand**。钩在 `MatchCoordinator.cs` `ClearCells` 前
+- 渲染：`FlowSandBoardRenderer.GetObstacleColor(hp,x,y)` 按 hp 色阶 + per-grain 抖动；绘制循环里 Obstacle 优先于颜色分支
+- 级联：磨损开口后 sand 流入，settle→`FindBridgeClearCells` 重扫，可触发连锁消除（已确认调度链完整）
+- 验证：`mcs` 编译 Core 零新错误（仅原有 readonly-struct 的 C#7 限制报错）
+- ⏭️ 待你在 Unity 里跑：手感、障碍是否有效分流、磨损节奏是否合适（可调 `InitialObstacleCount` / `ObstacleMaxHp` / band 范围）
 
 ## 阶段 2 — 干扰炸弹 ⏳ 待开工
 - `material=Bomb`，`auxGrid` 存**按「新方块数」倒计时**（比真实秒可控、玩家可数步）
