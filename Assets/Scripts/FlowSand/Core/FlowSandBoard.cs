@@ -260,6 +260,14 @@ namespace FlowSand.Core
 
             ActivePiece piece = CurrentPiece.Value;
             Vector2Int[] cells = TetrominoLibrary.GetCells(piece.Kind, piece.Rotation);
+
+            if (piece.IsBomb)
+            {
+                LockBombPiece(piece, cells);
+                CurrentPiece = null;
+                return;
+            }
+
             int fineDropDistance = GetFineLockDropDistance(piece, cells);
 
             for (int i = 0; i < cells.Length; i++)
@@ -297,6 +305,45 @@ namespace FlowSand.Core
             }
 
             CurrentPiece = null;
+        }
+
+        // Convert a landed bomb piece into a live mine. Writes the Bomb material
+        // (with a fresh fuse) over every grain of its coarse cells, reusing the
+        // exact same mine that SpawnBomb creates, so fuse ticking / detonation /
+        // defuse all apply unchanged.
+        private void LockBombPiece(ActivePiece piece, Vector2Int[] cells)
+        {
+            for (int i = 0; i < cells.Length; i++)
+            {
+                Vector2Int cell = cells[i];
+                int sandStartX = (piece.Col + cell.x) * GrainScale;
+                int sandStartY = (piece.Row + cell.y) * GrainScale;
+
+                for (int dx = 0; dx < GrainScale; dx++)
+                {
+                    int sandX = sandStartX + dx;
+                    if (sandX < 0 || sandX >= SandCols)
+                    {
+                        continue;
+                    }
+
+                    for (int dy = 0; dy < GrainScale; dy++)
+                    {
+                        int sandY = sandStartY + dy;
+                        if (sandY < 0 || sandY >= SandRows)
+                        {
+                            continue;
+                        }
+
+                        int index = ToIndex(sandX, sandY);
+                        materialGrid[index] = SandMaterial.Bomb;
+                        auxGrid[index] = BombInitialFuse;
+                        sandGrid[index] = CellColor.Empty;
+                    }
+                }
+            }
+
+            RefreshBombSummary();
         }
 
         public bool StepSand(System.Random random)
@@ -562,6 +609,23 @@ namespace FlowSand.Core
                 Color = TetrominoLibrary.RandomColor(random),
                 IsMixed = true,
                 IsSuperMixed = true,
+                ColorSeed = random.Next(),
+            };
+        }
+
+        // A falling bomb piece: a single coarse cell the player can move/aim like a
+        // normal piece. On lock it becomes a live mine (see LockCurrentPiece), so
+        // the player chooses where to drop the threat.
+        public void QueueBombPiece(System.Random random)
+        {
+            NextPiece = new ActivePiece
+            {
+                Kind = TetrominoKind.Mono,
+                Color = CellColor.Empty,
+                Rotation = 0,
+                Col = 0,
+                Row = 0,
+                IsBomb = true,
                 ColorSeed = random.Next(),
             };
         }

@@ -54,6 +54,7 @@ namespace FlowSand.Core
         public int Row;
         public bool IsMixed;
         public bool IsSuperMixed;
+        public bool IsBomb;
         public MixedColorPattern MixedPattern;
         public int ColorSeed;
     }

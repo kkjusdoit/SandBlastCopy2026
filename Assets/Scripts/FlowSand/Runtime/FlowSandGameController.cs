@@ -237,7 +237,8 @@ namespace FlowSand.Runtime
         //   O - scatter another batch of obstacles
         //   K - erode every obstacle one hp (watch red->amber->green->break)
         //   L - clear all obstacles
-        //   B - place a bomb (ticks down each new piece; detonates at zero)
+        //   B - queue a falling bomb piece (aim it, lands as a live mine)
+        //   N - drop a static mine straight onto the field (no aiming)
         // Current obstacle count is logged after each obstacle action.
         private void HandleGmShortcuts()
         {
@@ -271,8 +272,15 @@ namespace FlowSand.Runtime
 
             if (keyboard.GetKeyDown(KeyCode.B))
             {
+                board.QueueBombPiece(random);
+                Debug.Log("[GM] Next piece is a falling bomb (aim it; lands as a mine).");
+                nextVisualDirty = true;
+            }
+
+            if (keyboard.GetKeyDown(KeyCode.N))
+            {
                 bool placed = board.SpawnBomb(random);
-                Debug.Log($"[GM] Bomb spawn {(placed ? "ok" : "failed (no free cell)")}; fuse={FlowSandBoard.BombInitialFuse}.");
+                Debug.Log($"[GM] Static mine {(placed ? "placed" : "failed (no free cell)")}; fuse={FlowSandBoard.BombInitialFuse}.");
                 changed = true;
             }
 

@@ -142,7 +142,9 @@ namespace FlowSand.Runtime
                         }
 
                         CellColor grainColor = TetrominoLibrary.GetPieceGrainColor(next, i, dx, dy, 6);
-                        nextPixels[(py * width) + px] = palette[(int)grainColor];
+                        nextPixels[(py * width) + px] = next.IsBomb
+                            ? GetBombColor(FlowSandBoard.BombInitialFuse, px, py, true)
+                            : palette[(int)grainColor];
                     }
                 }
             }
@@ -171,6 +173,17 @@ namespace FlowSand.Runtime
                     {
                         if (!board.IsInsideSand(startX + dx, startY + dy))
                         {
+                            continue;
+                        }
+
+                        if (piece.IsBomb)
+                        {
+                            // A falling bomb previews as an armed (max-fuse) mine so
+                            // it reads the same before and after it lands.
+                            SetBoardPixel(
+                                startX + dx + 1,
+                                startY + dy + 1,
+                                GetBombColor(FlowSandBoard.BombInitialFuse, startX + dx, startY + dy, true));
                             continue;
                         }
 
