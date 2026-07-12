@@ -14,6 +14,7 @@ namespace FlowSand.Runtime
         private const int CoarseRows = 20;
         private const int GrainScale = 16;
         private const int InitialObstacleCount = 4;
+        private const int InitialBombCount = 1;
         private const string HighScoreKey = "FlowSand.HighScore.CellEquivalentV2";
         private const string SoundEnabledKey = "FlowSand.SoundEnabled";
         private const string VibrationEnabledKey = "FlowSand.VibrationEnabled";
@@ -232,11 +233,12 @@ namespace FlowSand.Runtime
 
 #if UNITY_EDITOR
         // GM / test shortcuts, editor only. Active during a live match so you can
-        // exercise the obstacle mechanics by hand:
+        // exercise the obstacle/bomb mechanics by hand:
         //   O - scatter another batch of obstacles
         //   K - erode every obstacle one hp (watch red->amber->green->break)
         //   L - clear all obstacles
-        // Current obstacle count is logged after each action.
+        //   B - place a bomb (ticks down each new piece; detonates at zero)
+        // Current obstacle count is logged after each obstacle action.
         private void HandleGmShortcuts()
         {
             if (match.Phase != FlowSandMatchCoordinator.GamePhase.Playing)
@@ -264,6 +266,13 @@ namespace FlowSand.Runtime
             {
                 board.DebugClearObstacles();
                 Debug.Log("[GM] Cleared all obstacles.");
+                changed = true;
+            }
+
+            if (keyboard.GetKeyDown(KeyCode.B))
+            {
+                bool placed = board.SpawnBomb(random);
+                Debug.Log($"[GM] Bomb spawn {(placed ? "ok" : "failed (no free cell)")}; fuse={FlowSandBoard.BombInitialFuse}.");
                 changed = true;
             }
 
@@ -346,6 +355,10 @@ namespace FlowSand.Runtime
         {
             board.Reset(random);
             board.SpawnObstacles(InitialObstacleCount, random);
+            for (int i = 0; i < InitialBombCount; i++)
+            {
+                board.SpawnBomb(random);
+            }
             softDropHeld = false;
             uiSoftDropHeld = false;
             lockedButtonDirection = 0;
@@ -377,6 +390,7 @@ namespace FlowSand.Runtime
             if (board.SpawnNextPiece(random))
             {
                 match.RegisterPieceSpawned();
+                ApplyGameplayUpdate(match.TickBombsOnSpawn(board));
                 boardVisualDirty = true;
                 nextVisualDirty = true;
                 return;

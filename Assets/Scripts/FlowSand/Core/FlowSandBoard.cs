@@ -114,6 +114,8 @@ namespace FlowSand.Core
             LastSpawnOffset = 0;
             sandStepCount = 0;
             erosionStamp = 0;
+            HasBombs = false;
+            MinimumBombFuse = 0;
             CurrentPiece = null;
             NextPiece = CreateQueuedPiece(random);
         }
@@ -798,6 +800,7 @@ namespace FlowSand.Core
                 }
             }
 
+            RefreshBombSummary();
             return true;
         }
 
@@ -813,8 +816,6 @@ namespace FlowSand.Core
         public bool TickBombFuses()
         {
             bool detonated = false;
-            int minFuse = int.MaxValue;
-            bool anyBomb = false;
 
             // First pass: decrement fuses. A bomb block shares one fuse across its
             // grains, so decrement uniformly and collect detonation centers.
@@ -852,6 +853,16 @@ namespace FlowSand.Core
             }
 
             // Third pass: recompute summary state over remaining bombs.
+            RefreshBombSummary();
+            return detonated;
+        }
+
+        // Recompute HasBombs / MinimumBombFuse from the current grid. Call after any
+        // operation that adds or removes bombs.
+        private void RefreshBombSummary()
+        {
+            int minFuse = int.MaxValue;
+            bool anyBomb = false;
             for (int i = 0; i < materialGrid.Length; i++)
             {
                 if (materialGrid[i] != SandMaterial.Bomb)
@@ -868,7 +879,6 @@ namespace FlowSand.Core
 
             HasBombs = anyBomb;
             MinimumBombFuse = anyBomb ? minFuse : 0;
-            return detonated;
         }
 
         private void DetonateBombAt(int centerIndex)
@@ -950,6 +960,11 @@ namespace FlowSand.Core
             }
 
             int perBlock = GrainScale * GrainScale;
+            if (defusedGrains > 0)
+            {
+                RefreshBombSummary();
+            }
+
             return (defusedGrains + perBlock - 1) / perBlock;
         }
 

@@ -70,9 +70,16 @@ namespace FlowSand.Runtime
                 for (int x = 0; x < board.SandCols; x++)
                 {
                     int index = board.ToIndex(x, y);
-                    if (board.GetMaterialByIndex(index) == SandMaterial.Obstacle)
+                    SandMaterial material = board.GetMaterialByIndex(index);
+                    if (material == SandMaterial.Obstacle)
                     {
                         SetBoardPixel(x + 1, y + 1, GetObstacleColor(board.GetAuxByIndex(index), x, y));
+                        continue;
+                    }
+
+                    if (material == SandMaterial.Bomb)
+                    {
+                        SetBoardPixel(x + 1, y + 1, GetBombColor(board.GetAuxByIndex(index), x, y, flashVisible));
                         continue;
                     }
 
@@ -222,6 +229,33 @@ namespace FlowSand.Runtime
                 (byte)Mathf.Clamp(baseColor.r + lift, 0, 255),
                 (byte)Mathf.Clamp(baseColor.g + lift, 0, 255),
                 (byte)Mathf.Clamp(baseColor.b + lift, 0, 255),
+                255);
+        }
+
+        // Bomb grains: a dark charcoal body that pulses toward red as the fuse
+        // runs low. `fuse` is pieces-remaining; lower fuse = hotter, faster-looking
+        // pulse driven by the shared flash toggle. A lit rim (every few grains)
+        // keeps the block reading as a device rather than flat sand.
+        private Color32 GetBombColor(byte fuse, int x, int y, bool flashVisible)
+        {
+            Color32 body = new Color32(38, 34, 40, 255);
+            Color32 hot = new Color32(226, 74, 58, 255);
+
+            // Urgency 0..1: fuse 1 -> ~1.0 (frantic), high fuse -> ~0.2 (calm).
+            float urgency = Mathf.Clamp01(1f - ((fuse - 1) * 0.2f));
+            float pulse = flashVisible ? urgency : urgency * 0.35f;
+
+            // Sparse lit specks so the surface looks like a fuse/circuit.
+            bool speck = (((x * 5) + (y * 3)) % 7) == 0;
+            if (speck)
+            {
+                pulse = Mathf.Clamp01(pulse + 0.4f);
+            }
+
+            return new Color32(
+                (byte)Mathf.RoundToInt(Mathf.Lerp(body.r, hot.r, pulse)),
+                (byte)Mathf.RoundToInt(Mathf.Lerp(body.g, hot.g, pulse)),
+                (byte)Mathf.RoundToInt(Mathf.Lerp(body.b, hot.b, pulse)),
                 255);
         }
 

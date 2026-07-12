@@ -41,6 +41,7 @@ namespace FlowSand.Runtime
         private const float SandStepInterval = 0.004f;
         private const int MaximumSandStepsPerFrame = 8;
         private const int ScorePerCoarseCell = 1;
+        private const int BombDefuseReward = 20;
         private const int ColorChallengeScoreInterval = 200;
         private const int MixedPieceScoreInterval = 30;
 
@@ -184,6 +185,27 @@ namespace FlowSand.Runtime
             currentPieceHadStructuralInput = false;
         }
 
+        // Tick bomb fuses once per newly spawned piece. If any bomb detonates, the
+        // resulting crater leaves floating sand, so re-enter the settle loop and
+        // re-scan for bridges afterwards. Call right after a successful spawn.
+        public GameplayUpdate TickBombsOnSpawn(FlowSandBoard board)
+        {
+            if (Phase != GamePhase.Playing || !board.HasBombs)
+            {
+                return default;
+            }
+
+            GameplayEvent events = GameplayEvent.None;
+            if (board.TickBombFuses())
+            {
+                waitingForSandToSettle = true;
+                bridgeCheckPending = false;
+                events |= GameplayEvent.BoardChanged;
+            }
+
+            return new GameplayUpdate((int)events);
+        }
+
         public GameplayUpdate TriggerColorChallenge(FlowSandBoard board, System.Random random)
         {
             if (Phase != GamePhase.Playing)
@@ -292,6 +314,9 @@ namespace FlowSand.Runtime
                 // Wear down obstacles touching the cleared region before the grains
                 // are removed, so erosion is driven by the player's clears.
                 board.ErodeObstaclesAround(pendingClearIndices);
+                // Bombs adjacent to the clear are defused into a reward instead of
+                // being left to detonate.
+                int defusedBombs = board.DefuseBombsAround(pendingClearIndices);
                 board.ClearCells(pendingClearIndices);
                 waitingForSandToSettle = true;
                 bridgeCheckPending = false;
@@ -302,6 +327,11 @@ namespace FlowSand.Runtime
                 int grainsPerCoarseCell = board.GrainScale * board.GrainScale;
                 int clearedCellEquivalents = Mathf.Max(1, cleared / grainsPerCoarseCell);
                 Score += clearedCellEquivalents * ScorePerCoarseCell * Combo;
+                if (defusedBombs > 0)
+                {
+                    Score += defusedBombs * BombDefuseReward * Combo;
+                }
+
                 resolvingPieceScored = true;
                 events |= GameplayEvent.BoardChanged | GameplayEvent.HudChanged | GameplayEvent.Cleared;
                 bool superMixedQueued = false;
