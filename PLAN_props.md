@@ -57,22 +57,31 @@ Commit `1981a60`。拍板：障碍先行 + hp 颜色色阶（3红→2黄→1绿�
 - 验证：`mcs` 编译 Core 零新错误（仅原有 readonly-struct 的 C#7 限制报错）
 - ⏭️ 待你在 Unity 里跑：手感、障碍是否有效分流、磨损节奏是否合适（可调 `InitialObstacleCount` / `ObstacleMaxHp` / band 范围）
 
-## GM / 测试快捷键 ✅ 已加（Editor only，commit `bcc3700`）
+## GM / 测试快捷键 ✅ 已加（Editor only，commit `bcc3700` + `53c7e09`）
 仅 `#if UNITY_EDITOR`，release 构建自动剔除。对局中（Playing）生效。用纯字母键避开 F 键与 A/D/W/S/P：
 - **F8** 触发色彩挑战（原有，项目自带）
 - **O** 再撒一批障碍（`InitialObstacleCount` 个）
 - **K** 全场障碍各扣 1 hp（看 红→琥珀→绿→破 全周期，不用凑真消除）
 - **L** 清空所有障碍
-- 每次操作在 Console 打印当前障碍块数（`board.CountObstacleBlocks()`）
-- 阶段 2 做炸弹时，再往这里加字母键（如 B=手动放炸弹）
+- **B** 放一颗炸弹（`BombInitialFuse` 步倒计时）
+- 每次操作在 Console 打印状态
 
-## 阶段 2 — 干扰炸弹 ⏳ 待开工
-- `material=Bomb`，`auxGrid` 存**按「新方块数」倒计时**（比真实秒可控、玩家可数步）
-- 调度：`MatchCoordinator` 每次生成新块递减炸弹计数；归零→`DetonateBomb(i)` 细网格圆形炸坑 + 重力重结算
-- **拆弹奖励**：炸弹所在连通块先完成左右贯通消除 → 转正向清屏奖励
-- 不直接判负。渲染加闪烁倒计时。最优先验证「炸弹送入贯通区反向变奖励」这个爽点
+## 阶段 2 — 干扰炸弹 ✅ 已完成
+Commit `a4d7a4b`（board 核心）+ `53c7e09`（runtime 接线）。
+- `material=Bomb` 占整块 `16×16` 细格；`auxGrid` 存**共享 fuse**（`BombInitialFuse=5`，按"新方块数"计）
+- **倒计时**：`TickBombFuses()` 每生成一个新块 −1；归零→`DetonateBombAt` 圆形炸坑（`BombBlastRadius=26` grain），清沙+清其他炸弹，**但不炸障碍**（障碍只吃磨损）
+- 引爆后 `TickBombsOnSpawn` 置 `waitingForSandToSettle` → 碎沙沉降 → 重扫 bridge，可连锁；活动块与沙网格独立，落块与沉降互不干扰
+- **拆弹奖励**：`DefuseBombsAround` 在消除事件里（挨着 erosion），炸弹紧邻一次消除→拆除不引爆，`+defusedBombs × BombDefuseReward(20) × Combo`
+- `HasBombs`/`MinimumBombFuse` 摘要由 `RefreshBombSummary` 在 spawn/defuse/detonate 后统一维护（防止新炸弹不 tick 的坑）
+- 渲染：`GetBombColor` 炭黑本体 + 随 fuse 越低越红的脉冲（借用 flash 开关）+ 稀疏亮点
+- 开局撒 1 颗炸弹（`InitialBombCount`）
+- 验证：`mcs` 编译 Core 零新错误/零警告
+- ⏭️ 待 Unity 验：炸弹脉冲视觉、到点炸坑、拆弹奖励、不判负；可调 `BombInitialFuse`/`BombBlastRadius`/`BombDefuseReward`/`InitialBombCount`
 
 ---
+
+## 全部主线完成 🎉
+阶段 0（material 地基）→ 阶段 1（障碍+磨损）→ 阶段 2（炸弹）已全部落地，等整体验收。
 
 ## 暂不做（记录备查）
 - 彩虹/通配：已由 SuperMixed 覆盖，出待办
