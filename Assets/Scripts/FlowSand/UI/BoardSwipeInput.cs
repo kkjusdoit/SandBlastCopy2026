@@ -88,7 +88,7 @@ namespace FlowSand.UI
             {
                 // For vertical moves (Up/Down), enforce a higher distance threshold and strict angle constraints
                 // to prevent accidental rotation triggers during left/right sliding.
-                float verticalThreshold = DeadZoneDistance() * 1.6f;
+                float verticalThreshold = DirectionThreshold(1.6f);
                 if (offset.y > 0f)
                 {
                     // UP (Rotate) requires dragging the knob significantly upwards and a steep swipe angle
@@ -101,7 +101,7 @@ namespace FlowSand.UI
                 {
                     // DOWN (Soft Drop) requires a much larger distance threshold and very steep downward swipe angle
                     // to prevent accidental acceleration triggers during left/right sliding.
-                    float downThreshold = DeadZoneDistance() * 2.2f;
+                    float downThreshold = DirectionThreshold(2.2f);
                     if (Mathf.Abs(offset.y) >= downThreshold && Mathf.Abs(offset.y) > Mathf.Abs(offset.x) * 1.8f)
                     {
                         targetDirection = 4;
@@ -155,7 +155,12 @@ namespace FlowSand.UI
         private float DeadZoneDistance()
         {
             float dpiThreshold = Screen.dpi > 0f ? Screen.dpi * MinimumSwipeInches : 0f;
-            return Mathf.Max(MinimumSwipePixels, dpiThreshold) * 0.5f;
+            return Mathf.Min(Mathf.Max(MinimumSwipePixels, dpiThreshold) * 0.5f, IndicatorRadius * 0.9f);
+        }
+
+        private float DirectionThreshold(float multiplier)
+        {
+            return Mathf.Min(DeadZoneDistance() * multiplier, IndicatorRadius * 0.9f);
         }
 
         public void OnPointerUp(PointerEventData eventData)

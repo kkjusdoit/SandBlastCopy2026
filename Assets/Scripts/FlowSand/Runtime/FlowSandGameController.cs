@@ -19,6 +19,8 @@ namespace FlowSand.Runtime
         private const float GameOverRowInterval = 0.05f;
         private const float MaximumGameplayDeltaTime = 0.1f;
         private const int ControlHintUseThreshold = 25;
+        private const int MaximumControlHintsPerMatch = 2;
+        private const float ControlHintInterval = 60f;
 
         private readonly Color32 backgroundColor = new(18, 20, 44, 255);
         private readonly Color32 borderColor = new(62, 201, 255, 255);
@@ -51,6 +53,7 @@ namespace FlowSand.Runtime
         private int lockedButtonDirection;
         private int bottomControlUseCount;
         private int controlHintsShownInSession;
+        private float lastControlHintTime;
         private bool soundEnabled;
         private bool vibrationEnabled;
 #if UNITY_WEBGL && !UNITY_EDITOR
@@ -305,6 +308,7 @@ namespace FlowSand.Runtime
 
             bottomControlUseCount = 0;
             controlHintsShownInSession = 0;
+            lastControlHintTime = float.NegativeInfinity;
             view.HideCombo();
             view.HideControlHint();
             view.SetOverlay(false);
@@ -324,7 +328,7 @@ namespace FlowSand.Runtime
 
             if (board.SpawnNextPiece(random))
             {
-                match.RegisterPieceSpawned(board);
+                match.RegisterPieceSpawned();
                 boardVisualDirty = true;
                 nextVisualDirty = true;
                 return;
@@ -454,7 +458,7 @@ namespace FlowSand.Runtime
 
         private void RegisterBottomControlUse()
         {
-            if (controlHintsShownInSession >= 3 || match.Phase != FlowSandMatchCoordinator.GamePhase.Playing)
+            if (controlHintsShownInSession >= MaximumControlHintsPerMatch || match.Phase != FlowSandMatchCoordinator.GamePhase.Playing)
             {
                 return;
             }
@@ -465,8 +469,14 @@ namespace FlowSand.Runtime
                 return;
             }
 
+            if (controlHintsShownInSession > 0 && match.ElapsedTime - lastControlHintTime < ControlHintInterval)
+            {
+                return;
+            }
+
             controlHintsShownInSession += 1;
             bottomControlUseCount = 0;
+            lastControlHintTime = match.ElapsedTime;
             view.ShowControlHint(GameTexts.VirtualJoystickHint);
         }
 

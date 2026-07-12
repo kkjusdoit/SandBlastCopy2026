@@ -87,15 +87,20 @@ namespace FlowSand.Runtime
             Transform nextInset = Container("Inset", nextFrame, Stretch(new Vector2(4, 4), new Vector2(-4, -4)));
             Image("Surface", nextInset, Surface, Stretch());
             NextImage = RawImage("Preview", nextInset, Stretch(new Vector2(10, 10), new Vector2(-10, -10)));
+            AspectRatioFitter nextImageAspect = NextImage.gameObject.AddComponent<AspectRatioFitter>();
+            nextImageAspect.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
+            nextImageAspect.aspectRatio = 1f;
 
             Text("Speed Label", safe, GameTexts.Speed, 24, Muted, TextAlignmentOptions.Center, L(1, 1, 1, 1, -480, -48, -360, 0));
             speedText = Text("Speed", safe, "1", 38, TextColor, TextAlignmentOptions.Center, L(1, 1, 1, 1, -480, -135, -360, -45));
 
             Text("Best Label", safe, GameTexts.Best, 24, Muted, TextAlignmentOptions.Center, L(1, 1, 1, 1, -320, -48, -170, 0));
             bestText = Text("Best", safe, "0", 36, Hex("FFCA40"), TextAlignmentOptions.Center, L(1, 1, 1, 1, -320, -135, -170, -45));
+            pauseButton = Button("Pause", safe, GameTexts.Pause, L(1, 1, 1, 1, -150, -132, -10, -52), RaisedSurface, TextColor);
+            pauseButton.onClick.AddListener(() => pause());
 
             // Maximized Game Area Layout (Centered width, maximized height)
-            Transform boardSlot = Container("Board Slot", safe, L(0, 0, 1, 1, 0, 140, 0, -180));
+            Transform boardSlot = Container("Board Slot", safe, L(0, 0, 1, 1, 0, 170, 0, -160));
             Transform board = Container("Board Frame", boardSlot, Stretch());
             AspectRatioFitter boardAspect = board.gameObject.AddComponent<AspectRatioFitter>();
             boardAspect.aspectMode = AspectRatioFitter.AspectMode.FitInParent;
@@ -130,7 +135,7 @@ namespace FlowSand.Runtime
             controlHintPopup = controlHintText.gameObject.AddComponent<ComboPopup>();
             controlHintPopup.Hide();
 
-            CreateControls(safe, pause, leftPress, leftRepeat, leftRelease, rightPress, rightRepeat, rightRelease, rotate, dropPress, dropRelease);
+            CreateControls(safe, leftPress, leftRepeat, leftRelease, rightPress, rightRepeat, rightRelease, rotate, dropPress, dropRelease);
             dimmer = Image("Dimmer", root.transform, Hex("050710D9"), Stretch()).gameObject;
             dimmer.GetComponent<Image>().raycastTarget = true;
             Transform panel = Container("Overlay", root.transform, L(.5f, .5f, .5f, .5f, -420, -560, 420, 560));
@@ -240,18 +245,14 @@ namespace FlowSand.Runtime
             return canvasPadding;
         }
 
-        private void CreateControls(Transform parent, Action pause, Action leftPress, Action leftRepeat, Action leftRelease, Action rightPress, Action rightRepeat, Action rightRelease, Action rotate, Action dropPress, Action dropRelease)
+        private void CreateControls(Transform parent, Action leftPress, Action leftRepeat, Action leftRelease, Action rightPress, Action rightRepeat, Action rightRelease, Action rotate, Action dropPress, Action dropRelease)
         {
-            // Compact Bottom Controls Layout for comfortable one-handed use
-            const float secondaryWidth = 160, dropWidth = 200, gap = 14, height = 90, bottom = 20;
-            float x = -((secondaryWidth * 4) + dropWidth + (gap * 4)) / 2;
-            Button left = IconButton("Left", parent, ControlIcon.Left, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height)); x += secondaryWidth + gap;
-            Button right = IconButton("Right", parent, ControlIcon.Right, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height)); x += secondaryWidth + gap;
-            Button rotateButton = IconButton("Rotate", parent, ControlIcon.Rotate, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height)); x += secondaryWidth + gap;
-            Button drop = Button("Drop", parent, GameTexts.Drop, L(.5f, 0, .5f, 0, x, bottom, x + dropWidth, bottom + height), Accent, Background);
-            x += dropWidth + gap;
-            pauseButton = Button("Pause", parent, GameTexts.Pause, L(.5f, 0, .5f, 0, x, bottom, x + secondaryWidth, bottom + height), RaisedSurface, TextColor);
-            pauseButton.onClick.AddListener(() => pause());
+            const float buttonWidth = 230, gap = 14, height = 126, bottom = 20;
+            float x = -((buttonWidth * 4) + (gap * 3)) / 2;
+            Button left = IconButton("Left", parent, ControlIcon.Left, L(.5f, 0, .5f, 0, x, bottom, x + buttonWidth, bottom + height)); x += buttonWidth + gap;
+            Button rotateButton = IconButton("Rotate", parent, ControlIcon.Rotate, L(.5f, 0, .5f, 0, x, bottom, x + buttonWidth, bottom + height)); x += buttonWidth + gap;
+            Button right = IconButton("Right", parent, ControlIcon.Right, L(.5f, 0, .5f, 0, x, bottom, x + buttonWidth, bottom + height)); x += buttonWidth + gap;
+            Button drop = Button("Drop", parent, GameTexts.Drop, L(.5f, 0, .5f, 0, x, bottom, x + buttonWidth, bottom + height), Accent, Background);
             Hold(left, leftPress, leftRepeat, leftRelease); Hold(right, rightPress, rightRepeat, rightRelease); Hold(drop, dropPress, null, dropRelease);
             rotateButton.onClick.AddListener(() => rotate());
         }
@@ -279,7 +280,8 @@ namespace FlowSand.Runtime
         private Button IconButton(string name, Transform parent, ControlIcon icon, Layout layout)
         {
             Button button = Button(name, parent, string.Empty, layout, RaisedSurface, TextColor);
-            RawImage image = RawImage("Icon", button.transform, L(.5f, .5f, .5f, .5f, -28, -28, 28, 28));
+            float iconHalfSize = icon == ControlIcon.Rotate ? 32f : 28f;
+            RawImage image = RawImage("Icon", button.transform, L(.5f, .5f, .5f, .5f, -iconHalfSize, -iconHalfSize, iconHalfSize, iconHalfSize));
             image.texture = CreateControlIcon(icon);
             image.color = TextColor;
             return button;
@@ -322,8 +324,10 @@ namespace FlowSand.Runtime
                     {
                         float dx = x - 31.5f, dy = y - 31.5f;
                         float radius = Mathf.Sqrt((dx * dx) + (dy * dy));
-                        bool ring = radius >= 18f && radius <= 23f;
-                        bool arrowHead = x >= 43 && x <= 55 && Mathf.Abs(y - 31) <= (55 - x);
+                        float angle = Mathf.Atan2(dy, dx) * Mathf.Rad2Deg;
+                        if (angle < 0f) angle += 360f;
+                        bool ring = radius >= 18f && radius <= 24f && angle >= 55f && angle <= 345f;
+                        bool arrowHead = x >= 43 && x <= 58 && Mathf.Abs(y - 44f) <= (58 - x) * 0.6f;
                         filled = ring || arrowHead;
                     }
                     else

@@ -7,7 +7,7 @@ using NUnit.Framework;
 public class FlowSandMatchCoordinatorTests
 {
     [Test]
-    public void SpeedIncreasesOnceEveryThirtySecondsAndStopsAtLevelTen()
+    public void SpeedIncreasesOnceEveryThirtySecondsAndStopsAtLevelFifteen()
     {
         FlowSandMatchCoordinator match = new(0);
         FlowSandBoard board = new(10, 20, 1);
@@ -22,9 +22,9 @@ public class FlowSandMatchCoordinatorTests
         Assert.That(match.GetSpeedLevel(), Is.EqualTo(2));
         Assert.That(match.GetCurrentDropInterval(), Is.EqualTo(0.655f).Within(0.001f));
 
-        match.UpdateGameplay(board, random, 300f, false);
-        Assert.That(match.GetSpeedLevel(), Is.EqualTo(10));
-        Assert.That(match.GetCurrentDropInterval(), Is.EqualTo(0.3f).Within(0.001f));
+        match.UpdateGameplay(board, random, 390f, false);
+        Assert.That(match.GetSpeedLevel(), Is.EqualTo(15));
+        Assert.That(match.GetCurrentDropInterval(), Is.EqualTo(0.2f).Within(0.001f));
     }
 
     [Test]

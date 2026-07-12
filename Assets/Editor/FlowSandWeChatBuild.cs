@@ -14,6 +14,10 @@ public static class FlowSandWeChatBuild
     private const string HotFunctionListName = "FlowSand-Wasm-HotFunctions.txt";
     private const string DefaultWeChatExportFolder = "SandFlow";
     private const string WasmCollectionSuffix = "-WasmCollection";
+    private const string MinigameLoadingProvider = "wxbd990766293b9dc4";
+    private const string MinigameLoadingVersion = "1.0.16";
+    private const string MinigameLoadingModuleAsset = "Assets/Editor/WeChat/minigame-loading.js";
+    private const string MinigameLoadingCoverAsset = "Assets/WX-WASM-SDK-V2/Runtime/wechat-default/images/background.jpg";
     private static readonly Regex SymbolEntryRegex = new Regex(
         "\\\"\\d+\\\"\\s*:\\s*\\\"([^\\\"]+)\\\"",
         RegexOptions.Compiled);
@@ -111,10 +115,11 @@ public static class FlowSandWeChatBuild
                 throw new InvalidOperationException($"WeChat export failed: {result}");
             }
 
+            string miniGameRoot = Path.Combine(outputRoot, WXConvertCore.miniGameDir);
+            IntegrateMinigameLoading(miniGameRoot);
             ValidateExport(outputRoot, collectionBuild);
             if (collectionBuild)
             {
-                string miniGameRoot = Path.Combine(outputRoot, WXConvertCore.miniGameDir);
                 GenerateWasmHotFunctionList(miniGameRoot);
             }
         }
@@ -201,6 +206,83 @@ public static class FlowSandWeChatBuild
         Debug.Log(
             $"[FlowSand Build] Validated {(collectionBuild ? "collection" : "release")} export. " +
             $"WASM artifacts={wasmFiles.Length}, WASM bytes={wasmBytes}, symbols bytes={symbolBytes}");
+    }
+
+    private static void IntegrateMinigameLoading(string miniGameRoot)
+    {
+        string gameJsonPath = Path.Combine(miniGameRoot, "game.json");
+        string gameJsPath = Path.Combine(miniGameRoot, "game.js");
+        string utilJsPath = Path.Combine(miniGameRoot, "unity-sdk", "util.js");
+        if (!File.Exists(gameJsonPath) || !File.Exists(gameJsPath) || !File.Exists(utilJsPath))
+        {
+            throw new FileNotFoundException("MinigameLoading integration requires game.json, game.js, and unity-sdk/util.js", miniGameRoot);
+        }
+
+        string projectRoot = Directory.GetParent(Application.dataPath)?.FullName
+            ?? throw new InvalidOperationException("Unable to resolve Unity project root.");
+        string moduleSource = Path.Combine(projectRoot, MinigameLoadingModuleAsset);
+        string coverSource = Path.Combine(projectRoot, MinigameLoadingCoverAsset);
+        if (!File.Exists(moduleSource) || !File.Exists(coverSource))
+        {
+            throw new FileNotFoundException("MinigameLoading source module or cover image is missing.");
+        }
+
+        string gameJson = File.ReadAllText(gameJsonPath);
+        if (!gameJson.Contains("\"MinigameLoading\"", StringComparison.Ordinal))
+        {
+            const string pluginsMarker = "\"plugins\": {";
+            int pluginsIndex = gameJson.IndexOf(pluginsMarker, StringComparison.Ordinal);
+            if (pluginsIndex < 0)
+            {
+                throw new InvalidDataException("Unable to find the plugins object in exported game.json.");
+            }
+
+            int insertionIndex = pluginsIndex + pluginsMarker.Length;
+            string pluginConfig =
+                $"\n    \"MinigameLoading\": {{\n" +
+                $"      \"version\": \"{MinigameLoadingVersion}\",\n" +
+                $"      \"provider\": \"{MinigameLoadingProvider}\",\n" +
+                "      \"contexts\": [\n" +
+                "        {\n" +
+                "          \"type\": \"isolatedContext\"\n" +
+                "        }\n" +
+                "      ]\n" +
+                "    },";
+            gameJson = gameJson.Insert(insertionIndex, pluginConfig);
+            File.WriteAllText(gameJsonPath, gameJson);
+        }
+
+        string gameJs = File.ReadAllText(gameJsPath);
+        const string moduleImport = "import './minigame-loading';";
+        if (!gameJs.Contains(moduleImport, StringComparison.Ordinal))
+        {
+            const string adapterImport = "import './weapp-adapter';";
+            if (!gameJs.Contains(adapterImport, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("Unable to find the adapter import in exported game.js.");
+            }
+            gameJs = gameJs.Replace(adapterImport, adapterImport + "\n" + moduleImport);
+            File.WriteAllText(gameJsPath, gameJs);
+        }
+
+        string utilJs = File.ReadAllText(utilJsPath);
+        const string hideLoadingCall = "GameGlobal.manager.hideLoadingPage();";
+        const string destroyLoadingCall = "GameGlobal.manager.hideLoadingPage();\n            if (GameGlobal.destroyMinigameLoading) {\n                GameGlobal.destroyMinigameLoading();\n            }";
+        if (!utilJs.Contains("GameGlobal.destroyMinigameLoading", StringComparison.Ordinal))
+        {
+            if (!utilJs.Contains(hideLoadingCall, StringComparison.Ordinal))
+            {
+                throw new InvalidDataException("Unable to find WXHideLoadingPage in exported unity-sdk/util.js.");
+            }
+            utilJs = utilJs.Replace(hideLoadingCall, destroyLoadingCall);
+            File.WriteAllText(utilJsPath, utilJs);
+        }
+
+        File.Copy(moduleSource, Path.Combine(miniGameRoot, "minigame-loading.js"), true);
+        string imagesRoot = Path.Combine(miniGameRoot, "images");
+        Directory.CreateDirectory(imagesRoot);
+        File.Copy(coverSource, Path.Combine(imagesRoot, "minigame-loading-cover.jpg"), true);
+        Debug.Log($"[FlowSand Build] Integrated MinigameLoading {MinigameLoadingVersion} into {miniGameRoot}");
     }
 
     private static void GenerateWasmHotFunctionList(string miniGameRoot)

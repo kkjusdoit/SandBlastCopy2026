@@ -95,7 +95,9 @@ namespace FlowSand.Core
             ActivePiece next = NextPiece;
             BoardBounds bounds = TetrominoLibrary.GetBounds(next.Kind, next.Rotation);
             int centeredCol = Mathf.Clamp((CoarseCols - bounds.Width) / 2 - bounds.MinX, -bounds.MinX, CoarseCols - bounds.MaxX - 1);
-            int targetOffset = TakeSpawnOffset(random);
+            // Once two thirds of the sand cells are occupied, stop drifting and
+            // return the next piece to the centered spawn position.
+            int targetOffset = IsAtLeastTwoThirdsFull() ? 0 : TakeSpawnOffset(random);
             // Spawn with the lowest occupied row at the visible ceiling. The rest of
             // the piece enters from above instead of reserving empty rows in the board.
             next.Row = CoarseRows - bounds.MinY - 1;
@@ -139,6 +141,20 @@ namespace FlowSand.Core
             RecordSpawn(next.IsMixed && !next.IsSuperMixed);
             CurrentPiece = next;
             return true;
+        }
+
+        private bool IsAtLeastTwoThirdsFull()
+        {
+            int occupiedCellCount = 0;
+            for (int i = 0; i < sandGrid.Length; i++)
+            {
+                if (sandGrid[i] != CellColor.Empty)
+                {
+                    occupiedCellCount += 1;
+                }
+            }
+
+            return occupiedCellCount * 3 >= sandGrid.Length * 2;
         }
 
         public bool TryMoveHorizontal(int delta)

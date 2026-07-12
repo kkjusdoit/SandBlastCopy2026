@@ -179,12 +179,9 @@ namespace FlowSand.Runtime
             currentPieceHadStructuralInput = true;
         }
 
-        public void RegisterPieceSpawned(FlowSandBoard board)
+        public void RegisterPieceSpawned()
         {
             currentPieceHadStructuralInput = false;
-#if UNITY_EDITOR
-            Debug.Log($"[FlowSand Debug] Spawn offset={board.LastSpawnOffset}, unattended score streak={consecutiveUnattendedScoringRounds}");
-#endif
         }
 
         public GameplayUpdate TriggerColorChallenge(FlowSandBoard board, System.Random random)
@@ -220,7 +217,7 @@ namespace FlowSand.Runtime
             float stepInterval = GetCurrentDropInterval();
             if (softDropHeld)
             {
-                stepInterval *= 0.5f;
+                stepInterval *= 0.33f;
             }
 
             while (pieceFallTimer >= stepInterval)
