@@ -233,9 +233,9 @@ namespace FlowSand.Runtime
 #if UNITY_EDITOR
         // GM / test shortcuts, editor only. Active during a live match so you can
         // exercise the obstacle mechanics by hand:
-        //   F9  - scatter another batch of obstacles
-        //   F10 - erode every obstacle one hp (watch red->amber->green->break)
-        //   F11 - clear all obstacles
+        //   O - scatter another batch of obstacles
+        //   K - erode every obstacle one hp (watch red->amber->green->break)
+        //   L - clear all obstacles
         // Current obstacle count is logged after each action.
         private void HandleGmShortcuts()
         {
@@ -246,21 +246,21 @@ namespace FlowSand.Runtime
 
             bool changed = false;
 
-            if (keyboard.GetKeyDown(KeyCode.F9))
+            if (keyboard.GetKeyDown(KeyCode.O))
             {
                 int placed = board.SpawnObstacles(InitialObstacleCount, random);
                 Debug.Log($"[GM] Spawned {placed} obstacle block(s); total now {board.CountObstacleBlocks()}.");
                 changed = true;
             }
 
-            if (keyboard.GetKeyDown(KeyCode.F10))
+            if (keyboard.GetKeyDown(KeyCode.K))
             {
                 board.DebugErodeAllObstacles();
                 Debug.Log($"[GM] Eroded all obstacles by 1 hp; total now {board.CountObstacleBlocks()}.");
                 changed = true;
             }
 
-            if (keyboard.GetKeyDown(KeyCode.F11))
+            if (keyboard.GetKeyDown(KeyCode.L))
             {
                 board.DebugClearObstacles();
                 Debug.Log("[GM] Cleared all obstacles.");

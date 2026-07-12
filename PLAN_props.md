@@ -58,13 +58,13 @@ Commit `1981a60`。拍板：障碍先行 + hp 颜色色阶（3红→2黄→1绿�
 - ⏭️ 待你在 Unity 里跑：手感、障碍是否有效分流、磨损节奏是否合适（可调 `InitialObstacleCount` / `ObstacleMaxHp` / band 范围）
 
 ## GM / 测试快捷键 ✅ 已加（Editor only，commit `bcc3700`）
-仅 `#if UNITY_EDITOR`，release 构建自动剔除。对局中（Playing）生效，随现有 F8 风格：
-- **F8** 触发色彩挑战（原有）
-- **F9** 再撒一批障碍（`InitialObstacleCount` 个）
-- **F10** 全场障碍各扣 1 hp（看 红→琥珀→绿→破 全周期，不用凑真消除）
-- **F11** 清空所有障碍
+仅 `#if UNITY_EDITOR`，release 构建自动剔除。对局中（Playing）生效。用纯字母键避开 F 键与 A/D/W/S/P：
+- **F8** 触发色彩挑战（原有，项目自带）
+- **O** 再撒一批障碍（`InitialObstacleCount` 个）
+- **K** 全场障碍各扣 1 hp（看 红→琥珀→绿→破 全周期，不用凑真消除）
+- **L** 清空所有障碍
 - 每次操作在 Console 打印当前障碍块数（`board.CountObstacleBlocks()`）
-- 阶段 2 做炸弹时，再往这里加 F12=手动放炸弹 等键
+- 阶段 2 做炸弹时，再往这里加字母键（如 B=手动放炸弹）
 
 ## 阶段 2 — 干扰炸弹 ⏳ 待开工
 - `material=Bomb`，`auxGrid` 存**按「新方块数」倒计时**（比真实秒可控、玩家可数步）
