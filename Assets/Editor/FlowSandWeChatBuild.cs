@@ -5,6 +5,7 @@ using System.Linq;
 using System.Text.RegularExpressions;
 using UnityEditor;
 using UnityEngine;
+using LitJson;
 using WeChatWASM;
 
 public static class FlowSandWeChatBuild
@@ -228,28 +229,42 @@ public static class FlowSandWeChatBuild
         }
 
         string gameJson = File.ReadAllText(gameJsonPath);
-        if (!gameJson.Contains("\"MinigameLoading\"", StringComparison.Ordinal))
+        JsonData gameConfig;
+        try
         {
-            const string pluginsMarker = "\"plugins\": {";
-            int pluginsIndex = gameJson.IndexOf(pluginsMarker, StringComparison.Ordinal);
-            if (pluginsIndex < 0)
-            {
-                throw new InvalidDataException("Unable to find the plugins object in exported game.json.");
-            }
+            gameConfig = JsonMapper.ToObject(gameJson);
+        }
+        catch (Exception exception)
+        {
+            throw new InvalidDataException("Exported game.json is not valid JSON.", exception);
+        }
 
-            int insertionIndex = pluginsIndex + pluginsMarker.Length;
-            string pluginConfig =
-                $"\n    \"MinigameLoading\": {{\n" +
-                $"      \"version\": \"{MinigameLoadingVersion}\",\n" +
-                $"      \"provider\": \"{MinigameLoadingProvider}\",\n" +
-                "      \"contexts\": [\n" +
-                "        {\n" +
-                "          \"type\": \"isolatedContext\"\n" +
-                "        }\n" +
-                "      ]\n" +
-                "    },";
-            gameJson = gameJson.Insert(insertionIndex, pluginConfig);
-            File.WriteAllText(gameJsonPath, gameJson);
+        if (!gameConfig.IsObject)
+        {
+            throw new InvalidDataException("Exported game.json must contain a JSON object.");
+        }
+
+        if (!gameConfig.Keys.Contains("plugins"))
+        {
+            gameConfig["plugins"] = new JsonData();
+        }
+        if (!gameConfig["plugins"].IsObject)
+        {
+            throw new InvalidDataException("The plugins value in exported game.json must be an object.");
+        }
+
+        if (!gameConfig["plugins"].Keys.Contains("MinigameLoading"))
+        {
+            var pluginConfig = new JsonData();
+            pluginConfig["version"] = MinigameLoadingVersion;
+            pluginConfig["provider"] = MinigameLoadingProvider;
+            var contexts = new JsonData();
+            var context = new JsonData();
+            context["type"] = "isolatedContext";
+            contexts.Add(context);
+            pluginConfig["contexts"] = contexts;
+            gameConfig["plugins"]["MinigameLoading"] = pluginConfig;
+            File.WriteAllText(gameJsonPath, JsonMapper.ToJson(gameConfig));
         }
 
         string gameJs = File.ReadAllText(gameJsPath);

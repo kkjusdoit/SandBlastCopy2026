@@ -1670,6 +1670,7 @@ namespace WeChatWASM
             {
                 Directory.CreateDirectory(Path.Combine(config.ProjectConf.DST, webglDir, "StreamingAssets"));
             }
+            Directory.CreateDirectory(Path.Combine(config.ProjectConf.DST, miniGameDir, "wasmcode"));
             return Brotlib(codeMd5 + ".webgl.wasm.code.unityweb.wasm.br", codePath, Path.Combine(config.ProjectConf.DST, miniGameDir, "wasmcode", codeMd5 + ".webgl.wasm.code.unityweb.wasm.br"));
         }
 
