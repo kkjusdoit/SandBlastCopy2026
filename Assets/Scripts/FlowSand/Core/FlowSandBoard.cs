@@ -307,17 +307,28 @@ namespace FlowSand.Core
             CurrentPiece = null;
         }
 
-        // Convert a landed bomb piece into a live mine. Writes the Bomb material
-        // (with a fresh fuse) over every grain of its coarse cells, reusing the
-        // exact same mine that SpawnBomb creates, so fuse ticking / detonation /
-        // defuse all apply unchanged.
+        // Convert a landed bomb piece into its effect. A Mine piece writes the Bomb
+        // material (with a fresh fuse) over its coarse cells, reusing the exact mine
+        // SpawnBomb creates so fuse ticking / detonation / defuse all apply. An
+        // Instant piece detonates a crater at each cell right away, leaving no mine.
         private void LockBombPiece(ActivePiece piece, Vector2Int[] cells)
         {
+            bool instant = piece.BombKind == BombPieceKind.Instant;
+
             for (int i = 0; i < cells.Length; i++)
             {
                 Vector2Int cell = cells[i];
                 int sandStartX = (piece.Col + cell.x) * GrainScale;
                 int sandStartY = (piece.Row + cell.y) * GrainScale;
+
+                if (instant)
+                {
+                    // Blast from the center of this coarse cell immediately.
+                    int centerX = Mathf.Clamp(sandStartX + (GrainScale / 2), 0, SandCols - 1);
+                    int centerY = Mathf.Clamp(sandStartY + (GrainScale / 2), 0, SandRows - 1);
+                    DetonateBombAt(ToIndex(centerX, centerY));
+                    continue;
+                }
 
                 for (int dx = 0; dx < GrainScale; dx++)
                 {
@@ -625,7 +636,23 @@ namespace FlowSand.Core
                 Rotation = 0,
                 Col = 0,
                 Row = 0,
-                IsBomb = true,
+                BombKind = BombPieceKind.Mine,
+                ColorSeed = random.Next(),
+            };
+        }
+
+        // A falling bomb piece that detonates the instant it lands, with no fuse or
+        // defuse window. The player aims the blast directly.
+        public void QueueInstantBombPiece(System.Random random)
+        {
+            NextPiece = new ActivePiece
+            {
+                Kind = TetrominoKind.Mono,
+                Color = CellColor.Empty,
+                Rotation = 0,
+                Col = 0,
+                Row = 0,
+                BombKind = BombPieceKind.Instant,
                 ColorSeed = random.Next(),
             };
         }

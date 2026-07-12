@@ -238,6 +238,7 @@ namespace FlowSand.Runtime
         //   K - erode every obstacle one hp (watch red->amber->green->break)
         //   L - clear all obstacles
         //   B - queue a falling bomb piece (aim it, lands as a live mine)
+        //   V - queue a falling instant bomb (aim it, detonates on landing)
         //   N - drop a static mine straight onto the field (no aiming)
         // Current obstacle count is logged after each obstacle action.
         private void HandleGmShortcuts()
@@ -274,6 +275,13 @@ namespace FlowSand.Runtime
             {
                 board.QueueBombPiece(random);
                 Debug.Log("[GM] Next piece is a falling bomb (aim it; lands as a mine).");
+                nextVisualDirty = true;
+            }
+
+            if (keyboard.GetKeyDown(KeyCode.V))
+            {
+                board.QueueInstantBombPiece(random);
+                Debug.Log("[GM] Next piece is a falling instant bomb (aim it; detonates on landing).");
                 nextVisualDirty = true;
             }
 

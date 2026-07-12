@@ -143,7 +143,9 @@ namespace FlowSand.Runtime
 
                         CellColor grainColor = TetrominoLibrary.GetPieceGrainColor(next, i, dx, dy, 6);
                         nextPixels[(py * width) + px] = next.IsBomb
-                            ? GetBombColor(FlowSandBoard.BombInitialFuse, px, py, true)
+                            ? (next.BombKind == BombPieceKind.Instant
+                                ? GetInstantBombColor(px, py, true)
+                                : GetBombColor(FlowSandBoard.BombInitialFuse, px, py, true))
                             : palette[(int)grainColor];
                     }
                 }
@@ -178,12 +180,13 @@ namespace FlowSand.Runtime
 
                         if (piece.IsBomb)
                         {
-                            // A falling bomb previews as an armed (max-fuse) mine so
-                            // it reads the same before and after it lands.
-                            SetBoardPixel(
-                                startX + dx + 1,
-                                startY + dy + 1,
-                                GetBombColor(FlowSandBoard.BombInitialFuse, startX + dx, startY + dy, true));
+                            // Falling bombs preview as their landed form: a mine
+                            // reads as an armed mine; an instant bomb reads as a
+                            // bright warning so the player knows it blows on contact.
+                            Color32 bombPixel = piece.BombKind == BombPieceKind.Instant
+                                ? GetInstantBombColor(startX + dx, startY + dy, true)
+                                : GetBombColor(FlowSandBoard.BombInitialFuse, startX + dx, startY + dy, true);
+                            SetBoardPixel(startX + dx + 1, startY + dy + 1, bombPixel);
                             continue;
                         }
 
@@ -272,7 +275,28 @@ namespace FlowSand.Runtime
                 255);
         }
 
-        private void DrawGameOverOverlay(int coarseRows)
+        // Instant bombs read as a bright orange/yellow hazard (vs the mine's dark
+        // charcoal), signalling "this blows the moment it lands" rather than a
+        // fused mine you can defuse.
+        private Color32 GetInstantBombColor(int x, int y, bool flashVisible)
+        {
+            Color32 body = new Color32(232, 132, 30, 255);
+            Color32 hot = new Color32(255, 226, 92, 255);
+
+            bool speck = (((x * 5) + (y * 3)) % 5) == 0;
+            float pulse = flashVisible ? 0.85f : 0.4f;
+            if (speck)
+            {
+                pulse = Mathf.Clamp01(pulse + 0.15f);
+            }
+
+            return new Color32(
+                (byte)Mathf.RoundToInt(Mathf.Lerp(body.r, hot.r, pulse)),
+                (byte)Mathf.RoundToInt(Mathf.Lerp(body.g, hot.g, pulse)),
+                (byte)Mathf.RoundToInt(Mathf.Lerp(body.b, hot.b, pulse)),
+                255);
+        }
+
         {
             int overlayRows = Mathf.Clamp(coarseRows, 0, board.CoarseRows) * board.GrainScale;
             int width = boardTexture.width;

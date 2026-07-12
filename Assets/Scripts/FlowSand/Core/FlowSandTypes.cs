@@ -44,6 +44,14 @@ namespace FlowSand.Core
         PerCell,
     }
 
+    // How a falling bomb piece behaves when it lands.
+    public enum BombPieceKind : byte
+    {
+        None = 0,
+        Mine = 1,     // becomes a live fused mine (player can defuse or dodge)
+        Instant = 2,  // detonates immediately on landing
+    }
+
     [Serializable]
     public struct ActivePiece
     {
@@ -54,9 +62,11 @@ namespace FlowSand.Core
         public int Row;
         public bool IsMixed;
         public bool IsSuperMixed;
-        public bool IsBomb;
+        public BombPieceKind BombKind;
         public MixedColorPattern MixedPattern;
         public int ColorSeed;
+
+        public bool IsBomb => BombKind != BombPieceKind.None;
     }
 
     public readonly struct TetrominoDefinition
