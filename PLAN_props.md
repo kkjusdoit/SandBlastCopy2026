@@ -57,26 +57,37 @@ Commit `1981a60`。拍板：障碍先行 + hp 颜色色阶（3红→2黄→1绿�
 - 验证：`mcs` 编译 Core 零新错误（仅原有 readonly-struct 的 C#7 限制报错）
 - ⏭️ 待你在 Unity 里跑：手感、障碍是否有效分流、磨损节奏是否合适（可调 `InitialObstacleCount` / `ObstacleMaxHp` / band 范围）
 
-## GM / 测试快捷键 ✅ 已加（Editor only，commit `bcc3700` + `53c7e09`）
+## GM / 测试快捷键 ✅ 已加（Editor only，commit `bcc3700` + `53c7e09` + `dcfca60`）
 仅 `#if UNITY_EDITOR`，release 构建自动剔除。对局中（Playing）生效。用纯字母键避开 F 键与 A/D/W/S/P：
 - **F8** 触发色彩挑战（原有，项目自带）
 - **O** 再撒一批障碍（`InitialObstacleCount` 个）
 - **K** 全场障碍各扣 1 hp（看 红→琥珀→绿→破 全周期，不用凑真消除）
 - **L** 清空所有障碍
-- **B** 放一颗炸弹（`BombInitialFuse` 步倒计时）
+- **B** 排队一个**天降炸弹方块**（下一块变炸弹，可左右移动/瞄准落点，落地变地雷）
+- **N** 直接往场地埋一颗**静态地雷**（不用瞄准）
 - 每次操作在 Console 打印状态
 
 ## 阶段 2 — 干扰炸弹 ✅ 已完成
-Commit `a4d7a4b`（board 核心）+ `53c7e09`（runtime 接线）。
+Commit `a4d7a4b`（board 核心）+ `53c7e09`（runtime 接线）+ `dcfca60`（天降炸弹方块）。
+
+**炸弹有两种形态，共享同一套地雷逻辑：**
+- **静态地雷**（场地陷阱，玩家不可控）：开局撒 1 颗（`InitialBombCount`），`SpawnBomb` 直接埋在中下部
+- **天降炸弹方块**（玩家可控，`ActivePiece.IsBomb`）：单格 Mono，从顶部落下可移动/旋转/瞄准；落地锁块时 `LockBombPiece` 写入**同一个地雷材质+fuse**，所以后续 tick/引爆/拆弹全部复用。下落中和 Next 预览都渲染成"已布防的地雷"
+
+**共享的地雷机制：**
 - `material=Bomb` 占整块 `16×16` 细格；`auxGrid` 存**共享 fuse**（`BombInitialFuse=5`，按"新方块数"计）
 - **倒计时**：`TickBombFuses()` 每生成一个新块 −1；归零→`DetonateBombAt` 圆形炸坑（`BombBlastRadius=26` grain），清沙+清其他炸弹，**但不炸障碍**（障碍只吃磨损）
 - 引爆后 `TickBombsOnSpawn` 置 `waitingForSandToSettle` → 碎沙沉降 → 重扫 bridge，可连锁；活动块与沙网格独立，落块与沉降互不干扰
 - **拆弹奖励**：`DefuseBombsAround` 在消除事件里（挨着 erosion），炸弹紧邻一次消除→拆除不引爆，`+defusedBombs × BombDefuseReward(20) × Combo`
-- `HasBombs`/`MinimumBombFuse` 摘要由 `RefreshBombSummary` 在 spawn/defuse/detonate 后统一维护（防止新炸弹不 tick 的坑）
+- `HasBombs`/`MinimumBombFuse` 摘要由 `RefreshBombSummary` 在 spawn/lock/defuse/detonate 后统一维护（防止新炸弹不 tick 的坑）
 - 渲染：`GetBombColor` 炭黑本体 + 随 fuse 越低越红的脉冲（借用 flash 开关）+ 稀疏亮点
-- 开局撒 1 颗炸弹（`InitialBombCount`）
 - 验证：`mcs` 编译 Core 零新错误/零警告
-- ⏭️ 待 Unity 验：炸弹脉冲视觉、到点炸坑、拆弹奖励、不判负；可调 `BombInitialFuse`/`BombBlastRadius`/`BombDefuseReward`/`InitialBombCount`
+- ⏭️ 待 Unity 验：天降炸弹瞄准手感、落地变雷、炸坑、拆弹奖励、不判负；可调 `BombInitialFuse`/`BombBlastRadius`/`BombDefuseReward`/`InitialBombCount`
+
+### 设计理念（炸弹为什么这样做）
+- **静态地雷 = 场地干扰源**：埋在你经营的沙堆区，压力来自"我的地盘里有雷"，对应你最初"倒计时炸开沙堆"的描述
+- **天降炸弹 = 玩家武器**：可瞄准落点，把威胁主动丢到最该炸的杂色堆；落地变雷后仍可拆可躲
+- **倒计时用"方块数"不用"秒"**：变成可算计的博弈（"我还有几步拆弹？"），拆弹奖励奖励的是主动处理干扰
 
 ---
 
