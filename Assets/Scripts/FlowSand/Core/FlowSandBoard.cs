@@ -11,6 +11,11 @@ namespace FlowSand.Core
         private static readonly int[] SpawnOffsetValues = { -2, -1, 0, 1, 2 };
 
         private readonly CellColor[] sandGrid;
+        // Parallel planes keyed by the same index as sandGrid. materialGrid tags
+        // each grain's behavior (Normal/Obstacle/Bomb); auxGrid stores a per-grain
+        // scalar reused per material (obstacle hp, bomb countdown, ...).
+        private readonly SandMaterial[] materialGrid;
+        private readonly byte[] auxGrid;
         private readonly TetrominoKind[] pieceBag = new TetrominoKind[7];
         private readonly byte[] sizeBag = new byte[24];
         private readonly bool[] mixedSpawnHistory = new bool[10];
@@ -39,6 +44,8 @@ namespace FlowSand.Core
 
             int cellCount = SandCols * SandRows;
             sandGrid = new CellColor[cellCount];
+            materialGrid = new SandMaterial[cellCount];
+            auxGrid = new byte[cellCount];
             bridgeVisitStamps = new int[cellCount];
             bridgeComponent = new int[cellCount];
             bridgeStack = new int[cellCount];
@@ -77,6 +84,8 @@ namespace FlowSand.Core
         public void Reset(System.Random random)
         {
             Array.Fill(sandGrid, CellColor.Empty);
+            Array.Clear(materialGrid, 0, materialGrid.Length);
+            Array.Clear(auxGrid, 0, auxGrid.Length);
             pieceBagIndex = pieceBag.Length;
             sizeBagIndex = sizeBag.Length;
             Array.Clear(mixedSpawnHistory, 0, mixedSpawnHistory.Length);
@@ -286,7 +295,9 @@ namespace FlowSand.Core
                 {
                     int sourceIndex = rowOffset + x;
                     CellColor value = sandGrid[sourceIndex];
-                    if (value == CellColor.Empty)
+                    // Empty cells and non-Normal materials (obstacles, bombs) never
+                    // fall — skip them as flow sources.
+                    if (value == CellColor.Empty || materialGrid[sourceIndex] != SandMaterial.Normal)
                     {
                         x += stride;
                         if (x >= SandCols)
@@ -298,7 +309,7 @@ namespace FlowSand.Core
                     }
 
                     int belowIndex = belowRowOffset + x;
-                    if (sandGrid[belowIndex] == CellColor.Empty)
+                    if (IsEmpty(belowIndex))
                     {
                         sandGrid[belowIndex] = value;
                         sandGrid[sourceIndex] = CellColor.Empty;
@@ -306,8 +317,8 @@ namespace FlowSand.Core
                     }
                     else
                     {
-                        bool canLeft = x > 0 && sandGrid[belowIndex - 1] == CellColor.Empty;
-                        bool canRight = x < SandCols - 1 && sandGrid[belowIndex + 1] == CellColor.Empty;
+                        bool canLeft = x > 0 && IsEmpty(belowIndex - 1);
+                        bool canRight = x < SandCols - 1 && IsEmpty(belowIndex + 1);
                         if (canLeft || canRight)
                         {
                             int targetX;
@@ -417,7 +428,7 @@ namespace FlowSand.Core
                         }
 
                         int sandX = sandStartX + dx;
-                        if (sandGrid[ToIndex(sandX, sandY)] != CellColor.Empty)
+                        if (BlocksFlow(ToIndex(sandX, sandY)))
                         {
                             return true;
                         }
@@ -438,7 +449,7 @@ namespace FlowSand.Core
             {
                 int leftIndex = ToIndex(0, y);
                 CellColor color = sandGrid[leftIndex];
-                if (color == CellColor.Empty || bridgeVisitStamps[leftIndex] == visitStamp)
+                if (!CanMatch(leftIndex) || bridgeVisitStamps[leftIndex] == visitStamp)
                 {
                     continue;
                 }
@@ -562,6 +573,8 @@ namespace FlowSand.Core
                 if (index >= 0 && index < sandGrid.Length)
                 {
                     sandGrid[index] = CellColor.Empty;
+                    materialGrid[index] = SandMaterial.Normal;
+                    auxGrid[index] = 0;
                 }
             }
         }
@@ -598,7 +611,7 @@ namespace FlowSand.Core
                     {
                         int sandX = sandStartX + dx;
                         int sandY = sandStartY + dy;
-                        if (sandGrid[ToIndex(sandX, sandY)] != CellColor.Empty)
+                        if (BlocksFlow(ToIndex(sandX, sandY)))
                         {
                             return true;
                         }
@@ -612,6 +625,41 @@ namespace FlowSand.Core
         public int ToIndex(int x, int y)
         {
             return (y * SandCols) + x;
+        }
+
+        // --- Grain semantics ---------------------------------------------------
+        // These decouple "what color is here" from "how does this cell behave".
+        // While every grain is Normal they reduce to the old color==Empty checks,
+        // so introducing them is behavior-preserving; special materials plug in
+        // here without touching the flow/clear/collision call sites.
+
+        // A grain can move into or spawn on this cell only if nothing occupies it.
+        // An occupying material (e.g. Obstacle) counts as non-empty even without a color.
+        private bool IsEmpty(int index)
+        {
+            return sandGrid[index] == CellColor.Empty && materialGrid[index] == SandMaterial.Normal;
+        }
+
+        // Whether this cell blocks a falling grain (inverse of IsEmpty).
+        private bool BlocksFlow(int index)
+        {
+            return !IsEmpty(index);
+        }
+
+        // Whether this cell participates in same-color bridge clears.
+        private bool CanMatch(int index)
+        {
+            return materialGrid[index] == SandMaterial.Normal && sandGrid[index] != CellColor.Empty;
+        }
+
+        internal SandMaterial GetMaterialByIndex(int index)
+        {
+            return materialGrid[index];
+        }
+
+        internal byte GetAuxByIndex(int index)
+        {
+            return auxGrid[index];
         }
 
         public bool IsInsideSand(int x, int y)
@@ -744,7 +792,7 @@ namespace FlowSand.Core
 
         private void TryVisitNeighbor(int index, CellColor targetColor, int visitStamp, ref int stackCount)
         {
-            if (bridgeVisitStamps[index] == visitStamp || sandGrid[index] != targetColor)
+            if (bridgeVisitStamps[index] == visitStamp || !CanMatch(index) || sandGrid[index] != targetColor)
             {
                 return;
             }

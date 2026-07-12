@@ -13,6 +13,16 @@ namespace FlowSand.Core
         Violet = 5,
     }
 
+    // Per-grain behavior tag, stored in a plane parallel to the color grid.
+    // Normal grains flow and take part in bridge clears; special materials
+    // override those behaviors while keeping their color slot independent.
+    public enum SandMaterial : byte
+    {
+        Normal = 0,
+        Obstacle = 1,
+        Bomb = 2,
+    }
+
     public enum TetrominoKind : byte
     {
         I,
