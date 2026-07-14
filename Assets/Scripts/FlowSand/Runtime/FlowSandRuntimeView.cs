@@ -126,7 +126,7 @@ namespace FlowSand.Runtime
             comboPopup = comboText.gameObject.AddComponent<ComboPopup>();
             comboPopup.Hide();
 
-            TMP_Text controlHintText = Text("Control Hint", boardSlot, "", 34, TextColor, TextAlignmentOptions.Center, L(.5f, .5f, .5f, .5f, -300, -90, 300, 90));
+            TMP_Text controlHintText = Text("Control Hint", boardSlot, "", 36, TextColor, TextAlignmentOptions.Center, L(.5f, .5f, .5f, .5f, -450, -100, 450, 100));
             controlHintText.enableWordWrapping = true;
             controlHintText.overflowMode = TextOverflowModes.Overflow;
             controlHintText.fontStyle = FontStyles.Bold;
@@ -143,7 +143,7 @@ namespace FlowSand.Runtime
             Transform content = Container("Content", panel, Stretch(new Vector2(5, 5), new Vector2(-5, -5)));
             Image("Surface", content, Surface, Stretch());
             titleText = Text("Title", content, GameTexts.GameName, 76, TextColor, TextAlignmentOptions.Center, L(0, 1, 1, 1, 60, -250, -60, -60));
-            subtitleText = Text("Subtitle", content, GameTexts.StartSubtitle, 34, Muted, TextAlignmentOptions.Top, L(0, 1, 1, 1, 70, -550, -70, -280));
+            subtitleText = Text("Subtitle", content, GameTexts.StartSubtitle, 34, Accent, TextAlignmentOptions.Top, L(0, 1, 1, 1, 70, -550, -70, -280));
             subtitleText.enableWordWrapping = true;
             subtitleText.overflowMode = TextOverflowModes.Overflow;
             subtitleText.enableAutoSizing = true;
@@ -186,7 +186,7 @@ namespace FlowSand.Runtime
 
         public void HideCombo() => comboPopup.Hide();
 
-        public void ShowControlHint(string message) => controlHintPopup.ShowMessage(message, 3f);
+        public void ShowControlHint(string message) => controlHintPopup.ShowMessage(message, 5f);
 
         public void HideControlHint() => controlHintPopup.Hide();
 

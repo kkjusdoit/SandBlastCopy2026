@@ -15,6 +15,7 @@ namespace FlowSand.Runtime
         public const string ColorChallenge = "七彩方块";
 
         public const string StartSubtitle = "同色流沙连接左右两侧即可消除\n一个方块1分，连消再×2、×3";
+        public const string ClearRuleHint = "同色流沙连接左右两侧即可消除";
         public const string StartInstructions = "在棋盘上滑动虚拟摇杆\n左右移动，上滑旋转，下滑加速";
         public const string Start = "开始游戏";
         public const string VirtualJoystickHint = "在棋盘上滑动虚拟摇杆\n左右移动，上滑旋转，下滑加速";

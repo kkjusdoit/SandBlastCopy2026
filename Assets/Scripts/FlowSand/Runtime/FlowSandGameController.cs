@@ -21,6 +21,7 @@ namespace FlowSand.Runtime
         private const int ControlHintUseThreshold = 25;
         private const int MaximumControlHintsPerMatch = 2;
         private const float ControlHintInterval = 60f;
+        private const int ClearRuleHintPieceThreshold = 3;
 
         private readonly Color32 backgroundColor = new(18, 20, 44, 255);
         private readonly Color32 borderColor = new(62, 201, 255, 255);
@@ -53,6 +54,7 @@ namespace FlowSand.Runtime
         private int lockedButtonDirection;
         private int bottomControlUseCount;
         private int controlHintsShownInSession;
+        private int piecesLockedThisMatch;
         private float lastControlHintTime;
         private bool soundEnabled;
         private bool vibrationEnabled;
@@ -142,6 +144,11 @@ namespace FlowSand.Runtime
             {
                 lockedButtonDirection = 0;
                 sfxPlayer.PlayLock();
+                piecesLockedThisMatch += 1;
+                if (piecesLockedThisMatch == ClearRuleHintPieceThreshold)
+                {
+                    view.ShowControlHint(GameTexts.ClearRuleHint);
+                }
             }
 
             if (update.Cleared)
@@ -308,11 +315,13 @@ namespace FlowSand.Runtime
 
             bottomControlUseCount = 0;
             controlHintsShownInSession = 0;
+            piecesLockedThisMatch = 0;
             lastControlHintTime = float.NegativeInfinity;
             view.HideCombo();
             view.HideControlHint();
             view.SetOverlay(false);
             view.SetPauseButton(true);
+            view.ShowControlHint(GameTexts.ClearRuleHint);
 
             SpawnNextPieceOrEnd();
             sfxPlayer.PlayStart();
